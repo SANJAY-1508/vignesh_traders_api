@@ -414,4 +414,235 @@ Received data: Array
     [balance] => 66.00
     [sum_total] => 66.00
 )
-Preparing to insert invoice with data: product_json: [{"product_id":"655a5bd9be83c4872969434ff50896b3","product_name":"KUCHI 123 SIZE","qty":"2","unit":"ad7e54e31a598b8c7a79698a4c5b3422","price_unit":"33.00","discount_percentage":"","discount_amt":"0.00","total_amt":"66.00","without_tax_amount":66,"hsn_no":"6767","item_code":"","db_unit_id":"ad7e54e31a598b8c7a79698a4c5b3422","db_subunit_id":"","unit_name":"KG"}], sum_total: 66Invoice created successfully. Invoice ID: 11Generated unique invoice ID: cc9cf4407a359aca0deca77db644fe57Generated bill number: VT/005/25-26
+Preparing to insert invoice with data: product_json: [{"product_id":"655a5bd9be83c4872969434ff50896b3","product_name":"KUCHI 123 SIZE","qty":"2","unit":"ad7e54e31a598b8c7a79698a4c5b3422","price_unit":"33.00","discount_percentage":"","discount_amt":"0.00","total_amt":"66.00","without_tax_amount":66,"hsn_no":"6767","item_code":"","db_unit_id":"ad7e54e31a598b8c7a79698a4c5b3422","db_subunit_id":"","unit_name":"KG"}], sum_total: 66Invoice created successfully. Invoice ID: 11Generated unique invoice ID: cc9cf4407a359aca0deca77db644fe57Generated bill number: VT/005/25-26Received data: Array
+(
+    [party_id] => a9c9f5db5c4035955d5bf5ab58f56778
+    [party_name] => KOVILPATTI MATCH COMPANCY
+    [invoice_id] => 40b5a8cf460868259ed2a3345fd7dea0
+    [party_details] => Array
+        (
+            [id] => 2
+            [company_id] => zentexus123
+            [party_id] => a9c9f5db5c4035955d5bf5ab58f56778
+            [party_name] => KOVILPATTI MATCH COMPANCY
+            [mobile_number] => 9443497236
+            [alter_number] => 
+            [email] => 
+            [company_name] => KOVILPATTI MATCH COMPANY
+            [gst_no] => 33AAJFK4305N1Z6
+            [billing_address] => KOVILPATTI
+            [shipp_address] => 6/23,ETAYAPURAM ROAD,P.S.SUPPAIYA NADER COMPOUND,KOVILPATTI
+            [opening_balance] => 0.00
+            [opening_date] => 2025-11-29 17:35:50
+            [ac_type] => 
+            [city] => 
+            [state] => 
+            [delete_at] => 0
+            [created_date] => 2025-11-29 12:05:50
+        )
+
+    [bill_no] => VT/001/25-26
+    [bill_date] => 2025-12-03
+    [product] => Array
+        (
+            [0] => Array
+                (
+                    [product_id] => 655a5bd9be83c4872969434ff50896b3
+                    [product_name] => KUCHI 123 SIZE
+                    [qty] => 11
+                    [unit] => ad7e54e31a598b8c7a79698a4c5b3422
+                    [unit_name] => KG
+                    [price_unit] => 33.00
+                    [discount_percentage] => 0
+                    [discount_amt] => 0.00
+                    [total_amt] => 363.00
+                )
+
+        )
+
+    [total] => 363.00
+    [paid] => 0.00
+    [company_details] => Array
+        (
+            [id] => 1
+            [company_id] => zentexus123
+            [company_name] => VIGNESH TRADERS
+            [mobile_number] => 9443232139
+            [gst_no] => 33AEGPV3251G1ZK
+            [bill_prefix] => VT
+            [city] => KOVILPATTI-628501
+            [state] => Tamilnadu
+            [fssai_code] => 
+            [bank_name] => Bank of Baroda,Kovilpatti
+            [ifsc_code] => BARB0KOVILP
+            [acc_name] => VIGNESH TRADERS
+            [acc_no] => 29840500000022
+            [upi_no] => DF
+            [address] => 418/1,Industrial Estate,Ettayapuram Road,
+            [delete_at] => 0
+            [create_date] => 2024-10-21 13:56:26
+        )
+
+    [eway_no] => 
+    [vechile_no] => 
+    [address] => KOVILPATTI
+    [mobile_number] => 9443497236
+    [sum_total] => 3663.00
+    [state_of_supply] => 
+    [round_off] => 0
+    [round_off_amount] => 0.00
+    [discount] => 0
+    [discount_type] => Discount %
+    [subtotal] => 363.00
+    [balance_amount] => 363.00
+    [payment_method] => Array
+        (
+        )
+
+    [discount_amount] => 0.00
+)
+Party details not found for party_id: a9c9f5db5c4035955d5bf5ab58f56778Received data: Array
+(
+    [party_id] => a9c9f5db5c4035955d5bf5ab58f56778
+    [eway_no] => LOL123
+    [vechile_no] => TN67
+    [bill_date] => 2025-12-01
+    [state_of_supply] => TAMIL NADU
+    [mobile_number] => 9443497236
+    [address] => VIGNESH COLONY
+    [total] => 60.00
+    [subtotal] => 66.00
+    [paid] => 0.00
+    [balance_amount] => 60.00
+    [final_total] => 
+    [discount] => 6
+    [discount_type] => Discount Amount
+    [total_discountall] => 
+    [round_off_checkbox] => 
+    [remark] => 
+    [payment_method] => Array
+        (
+        )
+
+    [product] => Array
+        (
+            [0] => Array
+                (
+                    [product_id] => 655a5bd9be83c4872969434ff50896b3
+                    [product_name] => KUCHI 123 SIZE
+                    [qty] => 2
+                    [unit] => ad7e54e31a598b8c7a79698a4c5b3422
+                    [price_unit] => 33.00
+                    [discount_percentage] => 
+                    [discount_amt] => 0.00
+                    [total_amt] => 66.00
+                )
+
+        )
+
+    [discount_amount] => 6.00
+    [party_name] => KOVILPATTI MATCH COMPANCY
+    [gst_type] => GST@0%
+    [gst_amount] => 0.00
+    [sub_total] => 66.00
+    [balance] => 60.00
+    [sum_total] => 66.00
+)
+Preparing to insert invoice with data: product_json: [{"product_id":"655a5bd9be83c4872969434ff50896b3","product_name":"KUCHI 123 SIZE","qty":"2","unit":"ad7e54e31a598b8c7a79698a4c5b3422","price_unit":"33.00","discount_percentage":"","discount_amt":"0.00","total_amt":"66.00","without_tax_amount":66,"hsn_no":"6767","item_code":"","db_unit_id":"ad7e54e31a598b8c7a79698a4c5b3422","db_subunit_id":"","unit_name":"KG"}], sum_total: 66Invoice created successfully. Invoice ID: 1Generated unique invoice ID: 5c042237ad22b19bfe8f961c873b8e8cGenerated bill number: VT/001/25-26Received data: Array
+(
+    [party_id] => a9c9f5db5c4035955d5bf5ab58f56778
+    [eway_no] => 
+    [vechile_no] => 
+    [bill_date] => 2025-12-03
+    [state_of_supply] => 
+    [mobile_number] => 9443497236
+    [address] => KOVILPATTI
+    [total] => 90.00
+    [subtotal] => 99.00
+    [paid] => 0.00
+    [balance_amount] => 90.00
+    [final_total] => 
+    [discount] => 9
+    [discount_type] => Discount Amount
+    [total_discountall] => 
+    [round_off_checkbox] => 
+    [remark] => 
+    [payment_method] => Array
+        (
+        )
+
+    [product] => Array
+        (
+            [0] => Array
+                (
+                    [product_id] => 655a5bd9be83c4872969434ff50896b3
+                    [product_name] => KUCHI 123 SIZE
+                    [qty] => 3
+                    [unit] => ad7e54e31a598b8c7a79698a4c5b3422
+                    [price_unit] => 33.00
+                    [discount_percentage] => 
+                    [discount_amt] => 0.00
+                    [total_amt] => 99.00
+                )
+
+        )
+
+    [discount_amount] => 9.00
+    [party_name] => KOVILPATTI MATCH COMPANCY
+    [gst_type] => GST@0%
+    [gst_amount] => 0.00
+    [sub_total] => 99.00
+    [balance] => 90.00
+    [sum_total] => 99.00
+)
+Preparing to insert invoice with data: product_json: [{"product_id":"655a5bd9be83c4872969434ff50896b3","product_name":"KUCHI 123 SIZE","qty":"3","unit":"ad7e54e31a598b8c7a79698a4c5b3422","price_unit":"33.00","discount_percentage":"","discount_amt":"0.00","total_amt":"99.00","without_tax_amount":99,"hsn_no":"6767","item_code":"","db_unit_id":"ad7e54e31a598b8c7a79698a4c5b3422","db_subunit_id":"","unit_name":"KG"}], sum_total: 99Invoice created successfully. Invoice ID: 2Generated unique invoice ID: 8193ffb18d0ba97b1ce451b2c5763eeeGenerated bill number: VT/002/25-26Received data: Array
+(
+    [party_id] => a9c9f5db5c4035955d5bf5ab58f56778
+    [eway_no] => 
+    [vechile_no] => 
+    [bill_date] => 2025-12-03
+    [state_of_supply] => 
+    [mobile_number] => 9443497236
+    [address] => KOVILPATTI
+    [total] => 76.00
+    [subtotal] => 66.00
+    [paid] => 0.00
+    [balance_amount] => 76.00
+    [round_off] => 1
+    [round_off_amount] => 0.48
+    [final_total] => 
+    [discount] => 2
+    [discount_type] => Discount Amount
+    [total_discountall] => 
+    [round_off_checkbox] => 
+    [remark] => 
+    [payment_method] => Array
+        (
+        )
+
+    [product] => Array
+        (
+            [0] => Array
+                (
+                    [product_id] => 655a5bd9be83c4872969434ff50896b3
+                    [product_name] => KUCHI 123 SIZE
+                    [qty] => 2
+                    [unit] => ad7e54e31a598b8c7a79698a4c5b3422
+                    [price_unit] => 33.00
+                    [discount_percentage] => 
+                    [discount_amt] => 0.00
+                    [total_amt] => 66.00
+                )
+
+        )
+
+    [discount_amount] => 2.00
+    [tax_amount] => 11.52
+    [balance] => 76.00
+    [party_name] => KOVILPATTI MATCH COMPANCY
+    [gst_type] => GST@18%
+    [gst_amount] => 11.52
+    [sub_total] => 66.00
+    [sum_total] => 66.00
+)
+Preparing to insert invoice with data: product_json: [{"product_id":"655a5bd9be83c4872969434ff50896b3","product_name":"KUCHI 123 SIZE","qty":"2","unit":"ad7e54e31a598b8c7a79698a4c5b3422","price_unit":"33.00","discount_percentage":"","discount_amt":"0.00","total_amt":"66.00","without_tax_amount":66,"hsn_no":"6767","item_code":"","db_unit_id":"ad7e54e31a598b8c7a79698a4c5b3422","db_subunit_id":"","unit_name":"KG"}], sum_total: 66Invoice created successfully. Invoice ID: 3Generated unique invoice ID: f6f2e433cd2a17b8bdd700b96ace8547Generated bill number: VT/003/25-26
