@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
     $to_date = $obj['to_date'];
 
     // SQL Query - Note: Changed 'billing_address' to 'address' and removed 'shipp_address'
-    $sql = "SELECT party_id, party_details, bill_no, bill_date, product, total, paid, company_details, 
+    $sql = "SELECT party_id,party_name,invoice_id, party_details, bill_no, bill_date, product, total, paid, company_details, 
             eway_no, vechile_no, address, mobile_number, sum_total, state_of_supply, round_off, round_off_amount 
             FROM invoice 
             WHERE delete_at = '0' 
@@ -98,6 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
 // Create Sale Invoice
 else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     $party_id = $obj['party_id'];
+    $party_name = $obj['party_name'];
     $bill_date = $obj['bill_date'];
     $eway_no = $obj['eway_no'];
     $vechile_no = $obj['vechile_no'];
@@ -191,10 +192,11 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
         file_put_contents("debug_log.txt", "Preparing to insert invoice with data: product_json: $product_json, sum_total: $sum_total", FILE_APPEND);
 
         // 💡 CHANGE 3: Insert invoice into database using 'address' column, removing 'shipp_address'
-        $sqlinvoice = "INSERT INTO invoice (company_id, party_id, party_details, bill_date, product, total, paid, balance, delete_at, eway_no, vechile_no, address, mobile_number, company_details, sum_total, state_of_supply, round_off, round_off_amount) 
+        $sqlinvoice = "INSERT INTO invoice (company_id, party_id,party_name, party_details, bill_date, product, total, paid, balance, delete_at, eway_no, vechile_no, address, mobile_number, company_details, sum_total, state_of_supply, round_off, round_off_amount) 
                VALUES (
                    '$compID', 
                    '$party_id', 
+                   '$party_name',
                    '$party_details', 
                    '$billDate', 
                    '$product_json', 
@@ -323,6 +325,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
 
     $invoice_id = $obj['invoice_id'];
     $party_id = $obj['party_id'];
+    $party_name = $obj['party_name'];
     $party_details = $obj['party_details'];
     $company_details = $obj['company_details'];
     $bill_no = $obj['bill_no'];
@@ -382,7 +385,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     $billDate = date('Y-m-d', strtotime($bill_date));
 
     // 💡 CHANGE 5: Updated SQL to use 'address' column and remove 'shipp_address'
-    $sqlUpdateInvoice = "UPDATE invoice SET party_id = ?, party_details = ?, company_details = ?, bill_no = ?, 
+    $sqlUpdateInvoice = "UPDATE invoice SET party_id = ?,party_name = ?, party_details = ?, company_details = ?, bill_no = ?, 
                          bill_date = ?, product = ?, eway_no = ?, vechile_no = ?, address = ?, 
                          mobile_number = ?, total = ?, sum_total = ?, round_off = ?, 
                          round_off_amount = ?, paid = ?, balance = ?, state_of_supply = ? 
@@ -391,6 +394,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     // 💡 CHANGE 6: Updated parameters array to use $address and remove shipp_address
     $paramsUpdate = [
         $party_id,
+        $party_name,
         json_encode($party_details),
         json_encode($company_details),
         $bill_no,
