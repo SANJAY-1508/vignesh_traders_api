@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
     $from_date = $obj['from_date'] ?? null;
     $to_date = $obj['to_date'] ?? null;
 
-    $sql = "SELECT expenses_item_id, category_id, DATE_FORMAT(created_date, '%Y-%m-%d') as bill_date, party_name, total 
+    $sql = "SELECT expenses_item_id, category_id, DATE_FORMAT(created_date, '%Y-%m-%d') as bill_date, party_name, total,details 
             FROM expenses_item 
             WHERE delete_at = '0' AND company_id = ? 
             AND (party_name LIKE ? OR created_date BETWEEN ? AND ?)";
@@ -104,33 +104,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
 }
 
 // Create Expense Item
-else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['category_id'], $obj['party_name'], $obj['total'])) {
+else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['category_id'], $obj['party_name'], $obj['total'], $obj['details'])) {
     $category_id = $obj['category_id'];
-
+    $details = $obj['details'];
     $party_name = $obj['party_name'];
     $total = $obj['total'];
 
     $delete = "0";
 
-    // Validate input
     if (empty($category_id) || empty($party_name) || empty($total)) {
         $output['status'] = 400;
         $output['msg'] = "Parameter MisMatch";
     } else {
-        // Check if the expense item already exists
-
-        // Insert new expense item
-        $sqlbill = "INSERT INTO expenses_item (company_id, category_id,party_name, total, delete_at) VALUES (?, ?, ?,?, ?)";
+        $sqlbill = "INSERT INTO expenses_item (company_id, category_id, party_name, details, total, delete_at) VALUES (?, ?, ?, ?, ?, ?)";
+        
         $stmt = $conn->prepare($sqlbill);
-        $stmt->bind_param('sssss', $compID, $category_id, $party_name, $total, $delete);
+        $stmt->bind_param('ssssss', $compID, $category_id, $party_name, $details, $total, $delete); 
+        
         $stmt->execute();
 
         if ($stmt->affected_rows > 0) {
             $id = $stmt->insert_id;
-            $uniqueID = uniqueID("expenses_item", $id); // Function to generate unique ID
+            $uniqueID = uniqueID("expenses_item", $id); 
 
-
-            // Update with unique ID and bill number
             $sqlUpdate = "UPDATE expenses_item SET expenses_item_id = ? WHERE id = ? AND company_id = ?";
             $stmtUpdate = $conn->prepare($sqlUpdate);
             $stmtUpdate->bind_param('sis', $uniqueID, $id, $compID);
@@ -157,11 +153,15 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     $category_id = $obj['category_id'];
     $party_name = $obj['party_name'];
     $total = $obj['total'];
+    $details = $obj['details']; 
 
     if (!empty($expenses_item_id) && !empty($category_id) && !empty($party_name) && !empty($total)) {
-        $sql = "UPDATE expenses_item SET category_id = ?, party_name = ?, total = ? WHERE expenses_item_id = ?";
+        
+        $sql = "UPDATE expenses_item SET category_id = ?, party_name = ?, details = ?, total = ? WHERE expenses_item_id = ?";
+        
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param('sssd', $category_id, $party_name, $total, $expenses_item_id);
+        $stmt->bind_param('sssss', $category_id, $party_name, $details, $total, $expenses_item_id);
+        
         if ($stmt->execute()) {
             $output['status'] = 200;
             $output['msg'] = "Expenses Item Details Updated Successfully";

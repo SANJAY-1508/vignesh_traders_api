@@ -17,25 +17,56 @@ $output = array();
 $compID = $_GET['id'];
 date_default_timezone_set('Asia/Calcutta');
 
+/**
+ * Executes a prepared statement and fetches all results.
+ * @param mysqli $conn The database connection object.
+ * @param string $sql The SQL query with placeholders (?).
+ * @param array $params An array of parameters to bind to the query.
+ * @return array The query result array containing status, message, and data.
+ */
 function fetchQuery($conn, $sql, $params)
 {
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
-        die("Prepare failed: (" . $conn->errno . ") " . $conn->error);
+        // Prepare failed, return error for debugging
+        return ['status' => 500, 'msg' => "Prepare failed: (" . $conn->errno . ") " . $conn->error, 'data' => []];
     }
 
     if ($params) {
-        $stmt->bind_param(str_repeat("s", count($params)), ...$params);
+        $types = str_repeat("s", count($params)); // Assuming all params are strings for flexibility
+        
+        // FIX: This structure ensures all parameters are passed by reference, 
+        // which is required by mysqli_stmt::bind_param() and resolves previous warnings.
+        $bind_args = [];
+        $bind_args[] = $types;
+        foreach ($params as $key => $value) {
+            $bind_args[] = &$params[$key];
+        }
+        
+        // Use call_user_func_array to call bind_param with references
+        if (!call_user_func_array([$stmt, 'bind_param'], $bind_args)) {
+             return ['status' => 500, 'msg' => "Bind failed: (" . $stmt->errno . ") " . $stmt->error, 'data' => []];
+        }
     }
 
     if (!$stmt->execute()) {
-        die("Execute failed: (" . $stmt->errno . ") " . $stmt->error);
+        // Execute failed, return error for debugging
+        return ['status' => 500, 'msg' => "Execute failed: (" . $stmt->errno . ") " . $stmt->error, 'data' => []];
     }
 
     $result = $stmt->get_result();
-    return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
-}
+    
+    // Non-GET requests (like UPDATE/INSERT) might not return a result set, 
+    // so we check for this and return a success status if rows were affected.
+    if ($stmt->affected_rows > 0 && is_null($result)) {
+        return ['status' => 200, 'msg' => 'Success', 'data' => []];
+    }
 
+    $data = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    
+    // For SELECT queries, if data is returned, status is 200.
+    return ['status' => 200, 'msg' => 'Success', 'data' => $data];
+}
 
 
 // List Sale Invoices
@@ -45,9 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
     $from_Date = $obj['from_date'];
     $to_date = $obj['to_date'];
 
-    // SQL Query
+    // SQL Query - Note: Changed 'billing_address' to 'address' and removed 'shipp_address'
     $sql = "SELECT party_id, party_details, bill_no, bill_date, product, total, paid, company_details, 
-            eway_no, vechile_no, billing_address, shipp_address, mobile_number, sum_total, state_of_supply 
+            eway_no, vechile_no, address, mobile_number, sum_total, state_of_supply, round_off, round_off_amount 
             FROM invoice 
             WHERE delete_at = '0' 
             AND company_id = ? 
@@ -56,9 +87,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
             OR JSON_EXTRACT(party_details, '$.party_name') LIKE ? 
             OR bill_no LIKE ?)";
 
-    // Prepare parameters
+    // Prepare parameters (Note: The original implementation of fetchQuery is slightly unusual and doesn't return the data directly)
     $params = [$compID, $party_id, $from_Date, $to_date, "%$search_text%", "%$search_text%"];
-    $invoices = fetchQuery($conn, $sql, $params);
+    $queryResult = fetchQuery($conn, $sql, $params);
+    $invoices = $queryResult['data'] ?? [];
+
 
     if (
         count($invoices) > 0
@@ -81,20 +114,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
 
 
 // Create Sale Invoice
-// Create Sale Invoice
 else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     $party_id = $obj['party_id'];
     $bill_date = $obj['bill_date'];
     $eway_no = $obj['eway_no'];
     $vechile_no = $obj['vechile_no'];
-    $billing_address = $obj['billing_address'];
-    $shipp_address = $obj['shipp_address'];
+    
+    // 💡 CHANGE 1: Use $address instead of $billing_address
+    $address = $obj['address']; 
+    // 💡 CHANGE 2: Removed $shipp_address variable
+    
     $product = $obj['product'];
     $total = $obj['total'];
     $paid = $obj['paid'];
     $balance_amount = $obj['balance_amount'];
     $mobile_number = $obj['mobile_number'];
     $state_of_supply = $obj['state_of_supply'];
+    
+    $round_off = $obj['round_off'] ?? '0'; 
+    $round_off_amount = $obj['round_off_amount'] ?? '0.00'; 
 
     try {
         // Log the incoming request data for debugging
@@ -103,19 +141,21 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
         // Parameter validation
         if (!$party_id || !$bill_date || !$product || !isset($total)) {
             file_put_contents("debug_log.txt", "Parameter mismatch: party_id: $party_id, bill_date: $bill_date, product: " . print_r($product, true) . ", total: $total", FILE_APPEND);
-            return json_encode([
+            echo json_encode([
                 'status' => 400,
                 'msg' => "Parameter Mismatch",
             ]);
+            exit();
         }
 
         // Fetch party details
         $sqlparty = "SELECT * FROM `sales_party` WHERE `party_id` = ? AND `company_id` = ?";
         $partyResult = fetchQuery($conn, $sqlparty, [$party_id, $compID]);
 
-        if (empty($partyResult)) {
+        if ($partyResult['status'] !== 200 || empty($partyResult['data'])) {
             file_put_contents("debug_log.txt", "Party details not found for party_id: $party_id", FILE_APPEND);
-            return json_encode(['status' => 400, 'msg' => 'Party Details Not Found']);
+            echo json_encode(['status' => 400, 'msg' => 'Party Details Not Found']);
+            exit();
         }
 
         $sum_total = 0;
@@ -125,26 +165,28 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
             $sqlProduct = "SELECT * FROM product WHERE product_id = ? AND company_id = ?";
             $productData = fetchQuery($conn, $sqlProduct, [$element['product_id'], $compID]);
 
-            if (empty($productData)) {
+            if ($productData['status'] !== 200 || empty($productData['data'])) {
                 file_put_contents("debug_log.txt", "Product not found: product_id: " . $element['product_id'], FILE_APPEND);
-                return json_encode(['status' => 400, 'msg' => 'Product Details Not Found']);
+                // The error you were seeing after the bind_param fix
+                echo json_encode(['status' => 400, 'msg' => 'Product Details Not Found']); 
+                exit();
             }
 
             // Calculate without tax amount
             $element['without_tax_amount'] = (floatval($element['qty']) * floatval($element['price_unit'])) - (empty($element['discount_amt']) ? 0 : floatval($element['discount_amt']));
             $sum_total += $element['without_tax_amount'];
 
-            $element['hsn_no'] = $productData[0]['hsn_no'];
-            $element['item_code'] = $productData[0]['item_code'];
-            $element['product_name'] = $productData[0]['product_name'];
-            $element['db_unit_id'] = $productData[0]['unit_id'];
-            $element['db_subunit_id'] = $productData[0]['subunit_id'];
+            $element['hsn_no'] = $productData['data'][0]['hsn_no'];
+            $element['item_code'] = $productData['data'][0]['item_code'];
+            $element['product_name'] = $productData['data'][0]['product_name'];
+            $element['db_unit_id'] = $productData['data'][0]['unit_id'];
+            $element['db_subunit_id'] = $productData['data'][0]['subunit_id'];
 
             // Fetch unit name
             $sqlunit = "SELECT unit_name FROM unit WHERE unit_id = ? AND delete_at = 0";
             $unitData = fetchQuery($conn, $sqlunit, [$element['unit']]);
-            if (!empty($unitData)) {
-                $element['unit_name'] = $unitData[0]['unit_name'];
+            if (!empty($unitData['data'])) {
+                $element['unit_name'] = $unitData['data'][0]['unit_name'];
             }
         }
 
@@ -152,21 +194,22 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
         $companyDetailsSQL = "SELECT * FROM company WHERE company_id = ?";
         $companyDetailsresult = fetchQuery($conn, $companyDetailsSQL, [$compID]);
 
-        if (empty($companyDetailsresult)) {
+        if ($companyDetailsresult['status'] !== 200 || empty($companyDetailsresult['data'])) {
             file_put_contents("debug_log.txt", "Company details not found for company_id: $compID", FILE_APPEND);
-            return json_encode(['status' => 400, 'msg' => 'Company Details Not Found']);
+            echo json_encode(['status' => 400, 'msg' => 'Company Details Not Found']);
+            exit();
         }
 
-        $companyData = json_encode($companyDetailsresult[0]);
-        $party_details = json_encode($partyResult[0]);
+        $companyData = json_encode($companyDetailsresult['data'][0]);
+        $party_details = json_encode($partyResult['data'][0]);
         $product_json = json_encode($product);
         $billDate = date('Y-m-d', strtotime($bill_date));
 
         // Log the invoice data
         file_put_contents("debug_log.txt", "Preparing to insert invoice with data: product_json: $product_json, sum_total: $sum_total", FILE_APPEND);
 
-        // Insert invoice into database
-        $sqlinvoice = "INSERT INTO invoice (company_id, party_id, party_details, bill_date, product, total, paid, balance, delete_at, eway_no, vechile_no, billing_address, mobile_number, company_details, sum_total, state_of_supply) 
+        // 💡 CHANGE 3: Insert invoice into database using 'address' column, removing 'shipp_address'
+        $sqlinvoice = "INSERT INTO invoice (company_id, party_id, party_details, bill_date, product, total, paid, balance, delete_at, eway_no, vechile_no, address, mobile_number, company_details, sum_total, state_of_supply, round_off, round_off_amount) 
                VALUES (
                    '$compID', 
                    '$party_id', 
@@ -179,24 +222,27 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
                    '0', 
                    '$eway_no', 
                    '$vechile_no', 
-                   '$billing_address', 
+                   '$address', 
                    '" . strval($mobile_number) . "', 
                    '$companyData', 
                    '" . strval($sum_total) . "', 
-                   '$state_of_supply'
+                   '$state_of_supply',
+                   '" . strval($round_off) . "',
+                   '" . strval($round_off_amount) . "'
                )";
 
         // Execute the query and log the result
         if ($conn->query($sqlinvoice) === TRUE) {
             $id = $conn->insert_id;
             file_put_contents("debug_log.txt", "Invoice created successfully. Invoice ID: $id", FILE_APPEND);
-            echo json_encode(['status' => 200, 'msg' => 'Invoice created successfully', 'id' => $id]);
+            // Moved echo to the final return, as the original logic does not exit here
         } else {
             file_put_contents("debug_log.txt", "Invoice creation failed: " . $conn->error, FILE_APPEND);
             echo json_encode(['status' => 400, 'msg' => 'Invoice Creation Failed: ' . $conn->error]);
+            exit();
         }
 
-        // Generate unique invoice ID
+        // NOTE: The function uniqueID() is assumed to be defined in 'config/dbconfig.php'
         $uniqueID = uniqueID("invoice", $id);
         file_put_contents("debug_log.txt", "Generated unique invoice ID: $uniqueID", FILE_APPEND);
 
@@ -215,15 +261,15 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
         // Initialize the bill number
         $billcount = 1;
 
-        if (!empty($resultLastBill[0]['bill_no'])) {
-            preg_match('/\/(\d+)\/\d{2}-\d{2}$/', $resultLastBill[0]['bill_no'], $matches);
+        if ($resultLastBill['status'] === 200 && !empty($resultLastBill['data'][0]['bill_no'])) {
+            preg_match('/\/(\d+)\/\d{2}-\d{2}$/', $resultLastBill['data'][0]['bill_no'], $matches);
             if (isset($matches[1])) {
                 $billcount = (int) $matches[1] + 1;
             }
         }
 
         $billcountFormatted = str_pad($billcount, 3, '0', STR_PAD_LEFT);
-        $bill_no = $resultBillPrefix[0]['bill_prefix'] . '/' . $billcountFormatted . '/' . $fiscal_year;
+        $bill_no = $resultBillPrefix['data'][0]['bill_prefix'] . '/' . $billcountFormatted . '/' . $fiscal_year;
 
         file_put_contents("debug_log.txt", "Generated bill number: $bill_no", FILE_APPEND);
 
@@ -231,55 +277,65 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
         $sqlUpdate = "UPDATE invoice SET invoice_id = ?, bill_no = ? WHERE id = ? AND company_id = ?";
         $updateResult = fetchQuery($conn, $sqlUpdate, [$uniqueID, $bill_no, $id, $compID]);
 
-        if (empty($updateResult)) {
+        if ($updateResult['status'] !== 200) {
             file_put_contents("debug_log.txt", "Invoice update failed", FILE_APPEND);
-            return json_encode(['status' => 400, 'msg' => 'Invoice Update Failed']);
+            echo json_encode(['status' => 400, 'msg' => 'Invoice Update Failed']);
+            exit();
         }
 
         // Update product stock and log stock history
         foreach ($product as $element) {
             $productId = $element['product_id'];
             $quantity = (int) $element['qty'];
+            $productName = $element['product_name'];
 
             $getStockSql = "SELECT crt_stock FROM product WHERE product_id = ? AND company_id = ?";
             $getStock = fetchQuery($conn, $getStockSql, [$productId, $compID]);
 
-            if (empty($getStock)) {
+            if ($getStock['status'] !== 200 || empty($getStock['data'])) {
                 file_put_contents("debug_log.txt", "Failed to retrieve stock for product_id: $productId", FILE_APPEND);
-                return json_encode(['status' => 400, 'msg' => 'Failed to retrieve stock']);
+                echo json_encode(['status' => 400, 'msg' => 'Failed to retrieve stock']);
+                exit();
             }
 
-            $quantity_purchased = $getStock[0]['crt_stock'] - $quantity;
+            $quantity_purchased = $getStock['data'][0]['crt_stock'] - $quantity;
 
             $updateStockSql = "UPDATE product SET crt_stock = ? WHERE product_id = ? AND company_id = ?";
             $updateResult = fetchQuery($conn, $updateStockSql, [$quantity_purchased, $productId, $compID]);
 
-            if (empty($updateResult)) {
-                return json_encode(['status' => 400, 'msg' => 'Stock Update Failed']);
+            if ($updateResult['status'] !== 200) {
+                echo json_encode(['status' => 400, 'msg' => 'Stock Update Failed']);
+                exit();
             }
 
             // Log stock history
             $stockSql = "INSERT INTO stock_history (stock_type, bill_no, product_id, product_name, quantity, company_id, bill_id) 
                           VALUES (?, ?, ?, ?, ?, ?, ?)";
-            $stockResult = fetchQuery($conn, $stockSql, ['STACKOUT', $bill_no, $productId, $element['product_name'], $quantity, $compID, $uniqueID]);
+            $stockResult = fetchQuery($conn, $stockSql, ['STACKOUT', $bill_no, $productId, $productName, $quantity, $compID, $uniqueID]);
 
-            if (empty($stockResult)) {
-                return json_encode(['status' => 400, 'msg' => 'Stock History Insertion Failed']);
+            if ($stockResult['status'] !== 200) {
+                echo json_encode(['status' => 400, 'msg' => 'Stock History Insertion Failed']);
+                exit();
             }
         }
 
-        return json_encode([
+        echo json_encode([
             'status' => 200,
             'msg' => 'Invoice Created Successfully',
             'data' => ['invoice_id' => $uniqueID],
         ]);
+        exit();
+
     } catch (Exception $error) {
-        return json_encode([
+        echo json_encode([
             'status' => 400,
             'msg' => $error->getMessage(),
         ]);
+        exit();
     }
-} // Update Sale Invoice
+} 
+
+// Update Sale Invoice
 else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     $json = file_get_contents('php://input');
     $obj = json_decode($json, true);
@@ -293,12 +349,16 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     $product = $obj['product'];
     $eway_no = $obj['eway_no'];
     $vechile_no = $obj['vechile_no'];
-    $billing_address = $obj['billing_address'];
-    $shipp_address = $obj['shipp_address'];
+    
+    // 💡 CHANGE 4: Use $address instead of $billing_address/shipp_address
+    $address = $obj['address'];
+    // 🗑️ REMOVED: $shipp_address = $obj['shipp_address'];
+    
     $mobile_number = $obj['mobile_number'];
     $total = $obj['total'];
     $sum_total = $obj['sum_total'];
     $round_off = $obj['round_off'];
+    $round_off_amount = $obj['round_off_amount'] ?? '0.00';
     $paid = $obj['paid'];
     $balance = $obj['balance'];
     $state_of_supply = $obj['state_of_supply'];
@@ -311,7 +371,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     }
 
     // Fetch the old invoice details
-    $sqlInvoice = "SELECT * FROM invoice WHERE invoice_id = ? AND company_id = ?";
+    $sqlInvoice = "SELECT product FROM invoice WHERE invoice_id = ? AND company_id = ?";
     $resultInvoice = fetchQuery($conn, $sqlInvoice, [$invoice_id, $compID]);
 
     if ($resultInvoice['status'] !== 200 || count($resultInvoice['data']) === 0) {
@@ -340,12 +400,14 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     $product_json = json_encode($product);
     $billDate = date('Y-m-d', strtotime($bill_date));
 
+    // 💡 CHANGE 5: Updated SQL to use 'address' column and remove 'shipp_address'
     $sqlUpdateInvoice = "UPDATE invoice SET party_id = ?, party_details = ?, company_details = ?, bill_no = ?, 
-                         bill_date = ?, product = ?, eway_no = ?, vechile_no = ?, billing_address = ?, 
-                         shipp_address = ?, mobile_number = ?, total = ?, sum_total = ?, round_off = ?, 
-                         paid = ?, balance = ?, state_of_supply = ? 
+                         bill_date = ?, product = ?, eway_no = ?, vechile_no = ?, address = ?, 
+                         mobile_number = ?, total = ?, sum_total = ?, round_off = ?, 
+                         round_off_amount = ?, paid = ?, balance = ?, state_of_supply = ? 
                          WHERE invoice_id = ? AND company_id = ?";
 
+    // 💡 CHANGE 6: Updated parameters array to use $address and remove shipp_address
     $paramsUpdate = [
         $party_id,
         json_encode($party_details),
@@ -355,12 +417,12 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
         $product_json,
         $eway_no,
         $vechile_no,
-        $billing_address,
-        $shipp_address,
+        $address, // Using the new $address variable
         $mobile_number,
         $total,
         $sum_total,
         $round_off,
+        $round_off_amount,
         $paid,
         $balance,
         $state_of_supply,
@@ -421,8 +483,11 @@ else if ($_SERVER['REQUEST_METHOD'] == 'DELETE') {
     } else {
         $sqlDelete = "UPDATE invoice SET delete_at = '1' WHERE invoice_id = ? AND company_id = ?";
         $paramsDelete = [$invoice_id, $compID];
+        
+        // fetchQuery for UPDATE/DELETE/INSERT returns a status array
+        $deleteResult = fetchQuery($conn, $sqlDelete, $paramsDelete);
 
-        if (fetchQuery($conn, $sqlDelete, $paramsDelete)) {
+        if ($deleteResult['status'] === 200) {
             $output['status'] = 200;
             $output['msg'] = 'Invoice Deleted Successfully';
         } else {
@@ -436,3 +501,5 @@ else if ($_SERVER['REQUEST_METHOD'] == 'DELETE') {
 }
 
 echo json_encode($output);
+
+?>
