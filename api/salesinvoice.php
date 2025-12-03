@@ -26,14 +26,14 @@ function fetchQuery($conn, $sql, $params)
     }
 
     if ($params) {
-        $types = str_repeat("s", count($params)); 
+        $types = str_repeat("s", count($params));
         $bind_args = [];
         $bind_args[] = $types;
         foreach ($params as $key => $value) {
             $bind_args[] = &$params[$key];
         }
         if (!call_user_func_array([$stmt, 'bind_param'], $bind_args)) {
-             return ['status' => 500, 'msg' => "Bind failed: (" . $stmt->errno . ") " . $stmt->error, 'data' => []];
+            return ['status' => 500, 'msg' => "Bind failed: (" . $stmt->errno . ") " . $stmt->error, 'data' => []];
         }
     }
 
@@ -101,20 +101,20 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     $bill_date = $obj['bill_date'];
     $eway_no = $obj['eway_no'];
     $vechile_no = $obj['vechile_no'];
-    
+
     // 💡 CHANGE 1: Use $address instead of $billing_address
-    $address = $obj['address']; 
+    $address = $obj['address'];
     // 💡 CHANGE 2: Removed $shipp_address variable
-    
+
     $product = $obj['product'];
     $total = $obj['total'];
     $paid = $obj['paid'];
     $balance_amount = $obj['balance_amount'];
     $mobile_number = $obj['mobile_number'];
     $state_of_supply = $obj['state_of_supply'];
-    
-    $round_off = $obj['round_off'] ?? '0'; 
-    $round_off_amount = $obj['round_off_amount'] ?? '0.00'; 
+
+    $round_off = $obj['round_off'] ?? '0';
+    $round_off_amount = $obj['round_off_amount'] ?? '0.00';
 
     try {
         // Log the incoming request data for debugging
@@ -150,7 +150,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
             if ($productData['status'] !== 200 || empty($productData['data'])) {
                 file_put_contents("debug_log.txt", "Product not found: product_id: " . $element['product_id'], FILE_APPEND);
                 // The error you were seeing after the bind_param fix
-                echo json_encode(['status' => 400, 'msg' => 'Product Details Not Found']); 
+                echo json_encode(['status' => 400, 'msg' => 'Product Details Not Found']);
                 exit();
             }
 
@@ -307,7 +307,6 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
             'data' => ['invoice_id' => $uniqueID],
         ]);
         exit();
-
     } catch (Exception $error) {
         echo json_encode([
             'status' => 400,
@@ -315,7 +314,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
         ]);
         exit();
     }
-} 
+}
 
 // Update Sale Invoice
 else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
@@ -331,11 +330,11 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     $product = $obj['product'];
     $eway_no = $obj['eway_no'];
     $vechile_no = $obj['vechile_no'];
-    
+
     // 💡 CHANGE 4: Use $address instead of $billing_address/shipp_address
     $address = $obj['address'];
     // 🗑️ REMOVED: $shipp_address = $obj['shipp_address'];
-    
+
     $mobile_number = $obj['mobile_number'];
     $total = $obj['total'];
     $sum_total = $obj['sum_total'];
@@ -465,7 +464,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'DELETE') {
     } else {
         $sqlDelete = "UPDATE invoice SET delete_at = '1' WHERE invoice_id = ? AND company_id = ?";
         $paramsDelete = [$invoice_id, $compID];
-        
+
         // fetchQuery for UPDATE/DELETE/INSERT returns a status array
         $deleteResult = fetchQuery($conn, $sqlDelete, $paramsDelete);
 
@@ -483,5 +482,3 @@ else if ($_SERVER['REQUEST_METHOD'] == 'DELETE') {
 }
 
 echo json_encode($output);
-
-?>
