@@ -87,6 +87,8 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     $gst_type = $obj['gst_type'];
     $gst_amount = isset($obj['gst_amount']) && $obj['gst_amount'] !== '' ? $obj['gst_amount'] : 0;
     $subtotal = $obj['subtotal'];
+    $round_off = isset($obj['round_off']) ? intval($obj['round_off']) : 0;
+    $round_off_amount = isset($obj['round_off_amount']) ? floatval($obj['round_off_amount']) : 0;
     $payment_method_json = json_encode($payment_method, true);
     try {
         // Parameter validation
@@ -139,10 +141,10 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
         $billDate = date('Y-m-d', strtotime($bill_date));
         $delete_at = 0;
         // Insert invoice into database
-        $sqlinvoice = "INSERT INTO invoice (company_id, party_id,party_name, party_details, bill_date, product, sub_total, discount,discount_amount,discount_type,gst_type,gst_amount, total, paid, balance, delete_at, eway_no, vechile_no, address, mobile_number, company_details, sum_total, state_of_supply, remark, payment_method)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $sqlinvoice = "INSERT INTO invoice (company_id, party_id,party_name, party_details, bill_date, product, sub_total, discount,discount_amount,discount_type,gst_type,gst_amount, total, paid, balance, delete_at, eway_no, vechile_no, address, mobile_number, company_details, sum_total, round_off, round_off_amount, state_of_supply, remark, payment_method)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sqlinvoice);
-        $stmt->bind_param("ssssssddsssssisssssssssss", $compID, $party_id, $party_name, $party_details_json, $billDate, $product_json, $subtotal, $discount, $discount_amount, $discount_type, $gst_type, $gst_amount, $total, $paid, $balance_amount, $delete_at, $eway_no, $vechile_no, $address, $mobile_number, $companyData, $sum_total, $state_of_supply, $remark, $payment_method_json);
+        $stmt->bind_param("ssssssddsssssisssssssssdsss", $compID, $party_id, $party_name, $party_details_json, $billDate, $product_json, $subtotal, $discount, $discount_amount, $discount_type, $gst_type, $gst_amount, $total, $paid, $balance_amount, $delete_at, $eway_no, $vechile_no, $address, $mobile_number, $companyData, $sum_total, $round_off, $round_off_amount, $state_of_supply, $remark, $payment_method_json);
         if ($stmt->execute()) {
             $id = $conn->insert_id;
         } else {
@@ -216,6 +218,8 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     $gst_type = $obj['gst_type'] ?? null;
     $gst_amount = isset($obj['gst_amount']) && $obj['gst_amount'] !== '' ? $obj['gst_amount'] : 0;
     $remark = isset($obj['remark']) && $obj['remark'] !== '' ? $obj['remark'] : '';
+    $round_off = isset($obj['round_off']) ? intval($obj['round_off']) : 0;
+    $round_off_amount = isset($obj['round_off_amount']) ? floatval($obj['round_off_amount']) : 0;
     $payment_method_json = json_encode($payment_method, true);
     // Validate required fields
     if (!$invoice_id || !$party_id) {
@@ -254,7 +258,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     $billDate = date('Y-m-d', strtotime($bill_date));
     $sqlUpdateInvoice = "UPDATE invoice SET party_id = ?,party_name = ?, party_details = ?, company_details = ?,
                          bill_date = ?, product = ?, eway_no = ?, vechile_no = ?,
-                         address = ?, mobile_number = ?, total = ?, sum_total = ?,
+                         address = ?, mobile_number = ?, total = ?, sum_total = ?, round_off = ?, round_off_amount = ?,
                          paid = ?, balance = ?, payment_method = ?,state_of_supply = ?, discount = ?,discount_amount = ?, discount_type = ?,gst_type = ?,gst_amount = ?,sub_total = ?,remark = ?
                          WHERE invoice_id = ? AND company_id = ?";
     $paramsUpdate = [
@@ -270,6 +274,8 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
         $mobile_number,
         $total,
         $sum_total,
+        $round_off,
+        $round_off_amount,
         $paid,
         $balance,
         $payment_method_json,
