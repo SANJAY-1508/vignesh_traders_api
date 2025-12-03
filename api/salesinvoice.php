@@ -17,54 +17,36 @@ $output = array();
 $compID = $_GET['id'];
 date_default_timezone_set('Asia/Calcutta');
 
-/**
- * Executes a prepared statement and fetches all results.
- * @param mysqli $conn The database connection object.
- * @param string $sql The SQL query with placeholders (?).
- * @param array $params An array of parameters to bind to the query.
- * @return array The query result array containing status, message, and data.
- */
+
 function fetchQuery($conn, $sql, $params)
 {
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
-        // Prepare failed, return error for debugging
         return ['status' => 500, 'msg' => "Prepare failed: (" . $conn->errno . ") " . $conn->error, 'data' => []];
     }
 
     if ($params) {
-        $types = str_repeat("s", count($params)); // Assuming all params are strings for flexibility
-        
-        // FIX: This structure ensures all parameters are passed by reference, 
-        // which is required by mysqli_stmt::bind_param() and resolves previous warnings.
+        $types = str_repeat("s", count($params)); 
         $bind_args = [];
         $bind_args[] = $types;
         foreach ($params as $key => $value) {
             $bind_args[] = &$params[$key];
         }
-        
-        // Use call_user_func_array to call bind_param with references
         if (!call_user_func_array([$stmt, 'bind_param'], $bind_args)) {
              return ['status' => 500, 'msg' => "Bind failed: (" . $stmt->errno . ") " . $stmt->error, 'data' => []];
         }
     }
 
     if (!$stmt->execute()) {
-        // Execute failed, return error for debugging
         return ['status' => 500, 'msg' => "Execute failed: (" . $stmt->errno . ") " . $stmt->error, 'data' => []];
     }
 
     $result = $stmt->get_result();
-    
-    // Non-GET requests (like UPDATE/INSERT) might not return a result set, 
-    // so we check for this and return a success status if rows were affected.
     if ($stmt->affected_rows > 0 && is_null($result)) {
         return ['status' => 200, 'msg' => 'Success', 'data' => []];
     }
 
     $data = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
-    
-    // For SELECT queries, if data is returned, status is 200.
     return ['status' => 200, 'msg' => 'Success', 'data' => $data];
 }
 
