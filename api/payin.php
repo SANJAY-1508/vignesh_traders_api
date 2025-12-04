@@ -325,6 +325,45 @@ else if ( $_SERVER[ 'REQUEST_METHOD' ] == 'PUT' ) {
     }
 }
 
+else if ( $_SERVER[ 'REQUEST_METHOD' ] == 'PUT' ) {
+    
+    // 1. Get the new payment_method parameter
+    $payin_id = $obj[ 'payin_id' ] ?? null;
+    $party_id = $obj[ 'party_id' ] ?? null;
+    $receipt_date = $obj[ 'receipt_date' ] ?? null;
+    $paid = $obj[ 'paid' ] ?? null;
+    $payment_method = $obj[ 'payment_method' ] ?? null; 
+
+    // 2. Update validation to include payment_method
+    if ( !$payin_id || !$party_id || !$receipt_date || !$paid || !$payment_method ) { 
+        $output[ 'status' ] = 400;
+        $output[ 'msg' ] = 'Parameter Mismatch: Missing required fields.';
+    } else {
+            $sql = "UPDATE payin SET 
+                        party_id = ?, 
+                        party_details = ?, 
+                        receipt_date = ?, 
+                        paid = ?, 
+                        payment_method = ? 
+                    WHERE payin_id = ? AND company_id = ?";
+            $params = [$party_id, json_encode( $party_id ),date( 'Y-m-d', strtotime( $receipt_date ) )$paid, $payment_method, 
+                $payin_id, 
+                $compID 
+            ];
+
+            $result = fetchQuery( $conn, $sql, $params );
+            
+            if ( $result[ 'status' ] === 200 ) {
+                $output[ 'status' ] = 200;
+                $output[ 'msg' ] = 'Payin Details Updated Successfully';
+            } else {
+                $output[ 'status' ] = 400;
+                $output[ 'msg' ] = 'Error updating payin: ' . ( $result[ 'msg' ] ?? 'Unknown database error.' );
+            }
+        }
+    }
+
+
 // Delete Payin
 else if ( $_SERVER[ 'REQUEST_METHOD' ] == 'DELETE' ) {
     $payin_id = $obj[ 'payin_id' ];
