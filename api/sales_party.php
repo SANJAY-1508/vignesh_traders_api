@@ -21,14 +21,23 @@ $timestamp = date('Y-m-d H:i:s');
 
 // List Sales Parties
 if (isset($obj->search_text)) {
-    $compID = $obj->company_id;
-    $searchText = $obj->search_text;
 
-    $sql = "SELECT party_id, party_name, mobile_number, alter_number, email, company_name, gst_no, billing_address, shipp_address, opening_balance, 
-                   DATE_FORMAT(opening_date, '%Y-%m-%d') as opening_date, ac_type, city, state 
+    $compID      = $obj->company_id;
+    $searchText  = $obj->search_text;
+
+    // Date filter
+    $from_date = isset($obj->from_date) ? $obj->from_date : null;
+    $to_date   = isset($obj->to_date) ? $obj->to_date : null;
+
+    $sql = "SELECT party_id, party_name, mobile_number, alter_number, email, company_name, gst_no, billing_address, 
+                   shipp_address, opening_balance, DATE_FORMAT(opening_date, '%Y-%m-%d') as opening_date, 
+                   ac_type, city, state 
             FROM sales_party 
-            WHERE delete_at = '0' AND company_id = ? 
-            AND (party_name LIKE ? OR mobile_number LIKE ? OR alter_number LIKE ? OR email LIKE ? OR company_name LIKE ? OR gst_no LIKE ?)";
+            WHERE delete_at = '0' 
+            AND company_id = ? 
+            AND (party_name LIKE ? OR mobile_number LIKE ? 
+                 OR alter_number LIKE ? OR email LIKE ? 
+                 OR company_name LIKE ? OR gst_no LIKE ?)";
 
     $stmt = $conn->prepare($sql);
     $searchParam = '%' . $searchText . '%';
@@ -37,60 +46,102 @@ if (isset($obj->search_text)) {
     $result = $stmt->get_result();
 
     if ($result->num_rows > 0) {
-        $data = array();
-        while ($row = $result->fetch_assoc()) {
-            $party_id = $row['party_id'];
 
-            // Fetch invoice data
-            $invoice_sql = "SELECT invoice_id, bill_no, bill_date, total, created_date FROM invoice WHERE party_id = ? AND delete_at = '0' AND company_id = ?";
-            $stmt_invoice = $conn->prepare($invoice_sql);
-            $stmt_invoice->bind_param('ii', $party_id, $compID);
+        $data = array();
+
+        while ($row = $result->fetch_assoc()) {
+
+            $party_id = $row["party_id"];
+            $transactions = [];
+
+            // -------------------------------------------------------
+            // INVOICE DATA WITH DATE FILTER
+            // -------------------------------------------------------
+            $invoice_sql = "SELECT invoice_id, bill_no, 
+                                   DATE_FORMAT(bill_date, '%Y-%m-%d') AS bill_date, 
+                                   total, created_date, paid, balance
+                            FROM invoice 
+                            WHERE delete_at = '0'
+                            AND company_id = ?
+                            AND party_id = ?";
+
+            if ($from_date && $to_date) {
+                $invoice_sql .= " AND bill_date BETWEEN ? AND ?";
+                $stmt_invoice = $conn->prepare($invoice_sql);
+                $stmt_invoice->bind_param('ssss', $compID, $party_id, $from_date, $to_date);
+            } else {
+                $stmt_invoice = $conn->prepare($invoice_sql);
+                $stmt_invoice->bind_param('ss', $compID, $party_id);
+            }
+
             $stmt_invoice->execute();
             $invoiceResult = $stmt_invoice->get_result();
-            $transactions = array();
-            while ($invoice = $invoiceResult->fetch_assoc()) {
+
+            while ($inv = $invoiceResult->fetch_assoc()) {
                 $transactions[] = [
-                    'id' => $invoice['invoice_id'],
-                    'type' => 'Invoice',
-                    'date' => $invoice['bill_date'],
-                    'receipt_no' => $invoice['bill_no'],
-                    'amount' => $invoice['total'],
-                    'create_date' => $invoice['created_date']
+                    "id"         => $inv["invoice_id"],
+                    "type"       => "Invoice",
+                    "date"       => $inv["bill_date"],
+                    "receipt_no" => $inv["bill_no"],
+                    "amount"     => $inv["total"],
+                    "paid"       => $inv["paid"],
+                    "balance"    => $inv["balance"],
+                    "create_date" => $inv["created_date"]
                 ];
             }
 
-            // Fetch payin data
-            $payin_sql = "SELECT payin_id, receipt_no, receipt_date, paid, created_date FROM payin WHERE party_id = ? AND delete_at = '0' AND company_id = ?";
-            $stmt_payin = $conn->prepare($payin_sql);
-            $stmt_payin->bind_param('ii', $party_id, $compID);
+            // -------------------------------------------------------
+            // PAYIN DATA WITH DATE FILTER
+            // -------------------------------------------------------
+            $payin_sql = "SELECT payin_id, receipt_no, 
+                                 DATE_FORMAT(receipt_date, '%Y-%m-%d') AS receipt_date,
+                                 paid, created_date
+                          FROM payin 
+                          WHERE delete_at = '0'
+                          AND company_id = ?
+                          AND party_id = ?";
+
+            if ($from_date && $to_date) {
+                $payin_sql .= " AND receipt_date BETWEEN ? AND ?";
+                $stmt_payin = $conn->prepare($payin_sql);
+                $stmt_payin->bind_param('ssss', $compID, $party_id, $from_date, $to_date);
+            } else {
+                $stmt_payin = $conn->prepare($payin_sql);
+                $stmt_payin->bind_param('ss', $compID, $party_id);
+            }
+
             $stmt_payin->execute();
             $payinResult = $stmt_payin->get_result();
-            while ($payin = $payinResult->fetch_assoc()) {
+
+            while ($pay = $payinResult->fetch_assoc()) {
                 $transactions[] = [
-                    'id' => $payin['payin_id'],
-                    'type' => 'Payin',
-                    'date' => $payin['receipt_date'],
-                    'receipt_no' => $payin['receipt_no'],
-                    'amount' => $payin['paid'],
-                    'create_date' => $payin['created_date']
+                    "id"         => $pay["payin_id"],
+                    "type"       => "Payin",
+                    "date"       => $pay["receipt_date"],
+                    "receipt_no" => $pay["receipt_no"],
+                    "amount"     => $pay["paid"],
+                    "paid"       => $pay["paid"],
+                    "balance"    => "0",
+                    "create_date" => $pay["created_date"]
                 ];
             }
 
-            // Sort transactions by created date
+            // SORT BY DATE DESC
             usort($transactions, function ($a, $b) {
-                return strtotime($b['create_date']) - strtotime($a['create_date']);
+                return strtotime($b["date"]) - strtotime($a["date"]);
             });
 
-            $row['transactions'] = $transactions;
+            $row["transactions"] = $transactions;
             $data[] = $row;
         }
 
-        $output['code'] = 200;
-        $output['msg'] = 'Success';
-        $output['data'] = $data;
+        $output["code"] = 200;
+        $output["msg"]  = "Success";
+        $output["data"] = $data;
     } else {
-        $output['code'] = 400;
-        $output['msg'] = 'No Records Found';
+
+        $output["code"] = 400;
+        $output["msg"] = "No Records Found";
     }
 } else if (!empty($obj->company_id) && !empty($obj->edit_party_id)) {
     $compID = $obj->company_id;
@@ -108,7 +159,8 @@ if (isset($obj->search_text)) {
     $ac_type = $obj->ac_type;
     $city = $obj->city;
     $state = $obj->state;
-
+    $billing_address = preg_replace('/\s+/', ' ', $billing_address);
+    $shipp_address = preg_replace('/\s+/', ' ', $shipp_address);
     // Correct UPDATE query without using insert_id since it's not needed
     $sql = "UPDATE sales_party 
             SET party_name = ?, mobile_number = ?, alter_number = ?, email = ?, company_name = ?, 
@@ -155,11 +207,13 @@ if (isset($obj->search_text)) {
     $gst_no = $obj->gst_no;
     $billing_address = $obj->billing_address;
     $shipp_address = $obj->shipp_address;
-    $opening_balance = $obj->opening_balance;
-    $opening_date = $obj->opening_date;
+    $opening_balance = !empty($obj->opening_balance) ? $obj->opening_balance : '0.00';
+    $opening_date = !empty($obj->opening_date) ? $obj->opening_date : date('Y-m-d H:i:s');
     $ac_type = $obj->ac_type;
-    $city = $obj->city;
-    $state = $obj->state;
+    $city = !empty($obj->city) ? $obj->city : '';
+    $state = !empty($obj->state) ? $obj->state : '';
+    $billing_address = preg_replace('/\s+/', ' ', $billing_address);
+    $shipp_address = preg_replace('/\s+/', ' ', $shipp_address);
 
     // Insert query with the correct number of columns and values
     $sql = "INSERT INTO sales_party (company_id, party_name, mobile_number, alter_number, email, company_name, gst_no, billing_address, shipp_address, opening_balance, opening_date, ac_type, city, state, delete_at) 

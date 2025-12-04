@@ -29,10 +29,16 @@ if ($conn->connect_error) {
 
 // List purchase parties with search filter
 if (isset($obj->search_text)) {
-    $search_text = $conn->real_escape_string($obj->search_text);
-    $company_id = $conn->real_escape_string($obj->company_id);
 
-    $sql = "SELECT party_id, party_name, mobile_number, alter_number, email, company_name, gst_no, address, city, state, opening_balance, DATE_FORMAT(opening_date, '%Y-%m-%d') as opening_date, ac_type 
+    $search_text = $conn->real_escape_string($obj->search_text);
+    $company_id  = $conn->real_escape_string($obj->company_id);
+
+    // Date Filters
+    $from_date = isset($obj->from_date) ? $obj->from_date : null;
+    $to_date   = isset($obj->to_date) ? $obj->to_date : null;
+
+    $sql = "SELECT party_id, party_name, mobile_number, alter_number, email, company_name, gst_no, address, city, state, opening_balance, 
+            DATE_FORMAT(opening_date, '%Y-%m-%d') as opening_date, ac_type 
             FROM purchase_party 
             WHERE delete_at = '0' 
             AND company_id = '$company_id' 
@@ -41,61 +47,89 @@ if (isset($obj->search_text)) {
     $result = $conn->query($sql);
 
     if ($result->num_rows > 0) {
+
         $data = array();
+
         while ($row = $result->fetch_assoc()) {
-            // Fetch transactions for the party
+
             $party_id = $row['party_id'];
+            $transactions = [];
 
-            $transactions = array();
-
-            // Purchase data
-            $purchase_sql = "SELECT purchase_id, bill_no, DATE_FORMAT(bill_date, '%Y-%m-%d') as bill_date, total, paid, balance 
+            // ----------------------------------------
+            // PURCHASE DATA WITH DATE FILTER
+            // ----------------------------------------
+            $purchase_sql = "SELECT purchase_id, bill_no, 
+                             DATE_FORMAT(bill_date, '%Y-%m-%d') as bill_date, 
+                             total, paid, balance 
                              FROM purchase 
-                             WHERE party_id = '$party_id' AND delete_at = '0' AND company_id = '$company_id'";
+                             WHERE delete_at = '0' 
+                             AND company_id = '$company_id'
+                             AND party_id = '$party_id'";
+
+            if ($from_date && $to_date) {
+                $purchase_sql .= " AND bill_date BETWEEN '$from_date' AND '$to_date'";
+            }
+
             $purchase_result = $conn->query($purchase_sql);
-            while ($purchase_row = $purchase_result->fetch_assoc()) {
-                $transactions[] = array(
-                    'id' => $purchase_row['purchase_id'],
-                    'type' => 'Purchase',
-                    'date' => $purchase_row['bill_date'],
-                    'receipt_no' => $purchase_row['bill_no'],
-                    'amount' => $purchase_row['total']
-                );
+
+            while ($p = $purchase_result->fetch_assoc()) {
+                $transactions[] = [
+                    "id"         => $p["purchase_id"],
+                    "type"       => "Purchase",
+                    "date"       => $p["bill_date"],
+                    "receipt_no" => $p["bill_no"],
+                    "amount"     => $p["total"],
+                    "paid"       => $p["paid"],
+                    "balance"    => $p["balance"]
+                ];
             }
 
-            // Payout data
-            $payout_sql = "SELECT payout_id, voucher_no, DATE_FORMAT(voucher_date, '%Y-%m-%d') as voucher_date, paid 
-                           FROM payout 
-                           WHERE party_id = '$party_id' AND delete_at = '0' AND company_id = '$company_id'";
+            // ----------------------------------------
+            // PAYOUT DATA WITH DATE FILTER
+            // ----------------------------------------
+            $payout_sql = "SELECT payout_id, voucher_no,
+                           DATE_FORMAT(voucher_date, '%Y-%m-%d') as voucher_date,
+                           paid
+                           FROM payout
+                           WHERE delete_at = '0'
+                           AND company_id = '$company_id'
+                           AND party_id = '$party_id'";
+
+            if ($from_date && $to_date) {
+                $payout_sql .= " AND voucher_date BETWEEN '$from_date' AND '$to_date'";
+            }
+
             $payout_result = $conn->query($payout_sql);
-            while ($payout_row = $payout_result->fetch_assoc()) {
-                $transactions[] = array(
-                    'id' => $payout_row['payout_id'],
-                    'type' => 'Payout',
-                    'date' => $payout_row['voucher_date'],
-                    'receipt_no' => $payout_row['voucher_no'],
-                    'amount' => $payout_row['paid']
-                );
+
+            while ($pay = $payout_result->fetch_assoc()) {
+                $transactions[] = [
+                    "id"         => $pay["payout_id"],
+                    "type"       => "Payout",
+                    "date"       => $pay["voucher_date"],
+                    "receipt_no" => $pay["voucher_no"],
+                    "amount"     => $pay["paid"],
+                    "paid"       => $pay["paid"],
+                    "balance"    => "0"
+                ];
             }
 
-            // Sort transactions by date
+            // Sort by date DESC
             usort($transactions, function ($a, $b) {
-                return strtotime($b['date']) - strtotime($a['date']);
+                return strtotime($b["date"]) - strtotime($a["date"]);
             });
 
-            $row['transactions'] = $transactions;
+            $row["transactions"] = $transactions;
             $data[] = $row;
         }
 
         $output["status"] = 200;
-        $output["msg"] = "Success";
-        $output["data"] = $data;
+        $output["msg"]    = "Success";
+        $output["data"]   = $data;
     } else {
         $output["status"] = 400;
-        $output["msg"] = "No Records Found";
+        $output["msg"]    = "No Records Found";
     }
-
-}else if (isset($obj->company_id) && isset($obj->edit_party_id)) {
+} else if (isset($obj->company_id) && isset($obj->edit_party_id)) {
     $party_id = $obj->edit_party_id;
     $party_name = $obj->party_name;
     $mobile_number = $obj->mobile_number;
@@ -114,7 +148,7 @@ if (isset($obj->search_text)) {
     // Update query
     $sql = "UPDATE purchase_party SET party_name=?, mobile_number=?, alter_number=?, email=?, company_name=?, gst_no=?, address=?, city=?, state=?, opening_balance=?, opening_date=?, ac_type=? WHERE party_id=? AND company_id=?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssssssssssssss", $party_name, $mobile_number, $alter_number, $email, $company_name, $gst_no, $address, $city, $state, $opening_balance, $opening_date, $ac_type, $party_id,$company_id);
+    $stmt->bind_param("ssssssssssssss", $party_name, $mobile_number, $alter_number, $email, $company_name, $gst_no, $address, $city, $state, $opening_balance, $opening_date, $ac_type, $party_id, $company_id);
 
     if ($stmt->execute()) {
         $output["status"] = 200;
@@ -124,9 +158,9 @@ if (isset($obj->search_text)) {
         $output["msg"] = "Error updating record";
     }
 
-// Delete purchase party
-}else if (isset($obj->party_name) && isset($obj->company_id)) {
-    $compID = $obj->company_id; 
+    // Delete purchase party
+} else if (isset($obj->party_name) && isset($obj->company_id)) {
+    $compID = $obj->company_id;
     $party_name = $obj->party_name ?? null;
     $mobile_number = $obj->mobile_number ?? null;
     $alter_number = $obj->alter_number ?? null;
@@ -151,7 +185,7 @@ if (isset($obj->search_text)) {
     $openDate = date('Y-m-d', strtotime($opening_date));
     $sql = "INSERT INTO purchase_party (company_id, party_name, mobile_number, alter_number, email, company_name, gst_no, address, city, state, opening_balance, opening_date, ac_type, delete_at) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0')";
-    
+
     // Updated to 13 parameters
     $stmt = $conn->prepare($sql);
     if ($stmt === false) {
@@ -172,7 +206,7 @@ if (isset($obj->search_text)) {
         // Update party_id
         $updateSql = "UPDATE purchase_party SET party_id=? WHERE id=? AND company_id=?";
         $updateStmt = $conn->prepare($updateSql);
-        $updateStmt->bind_param("sii", $uniqueID, $id, $compID);
+        $updateStmt->bind_param("sis", $uniqueID, $id, $compID);
 
         if ($updateStmt->execute()) {
             $output["status"] = 200;
@@ -189,15 +223,14 @@ if (isset($obj->search_text)) {
     }
 
     $stmt->close();
-}
- else if (isset($obj->delete_party_id) && isset($obj->company_id)) {
+} else if (isset($obj->delete_party_id) && isset($obj->company_id)) {
     $party_id = $conn->real_escape_string($obj->delete_party_id);
     $company_id = $obj->company_id;
 
     // Delete query
     $sql = "UPDATE purchase_party SET delete_at = '1' WHERE party_id = ? AND company_id=?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $party_id,$company_id); // Assuming party_id is an integer
+    $stmt->bind_param("ss", $party_id, $company_id); // Assuming party_id is an integer
 
     if ($stmt->execute()) {
         if ($stmt->affected_rows > 0) {
@@ -220,4 +253,3 @@ if (isset($obj->search_text)) {
 }
 
 echo json_encode($output, JSON_NUMERIC_CHECK);
-?>
