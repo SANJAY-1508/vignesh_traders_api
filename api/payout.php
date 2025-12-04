@@ -114,7 +114,7 @@ function listPayouts($conn, $compID, $obj)
     }
 
     $sql = "SELECT payout_id, party_id, party_details, company_details, voucher_no, 
-            DATE_FORMAT(voucher_date,'%Y-%m-%d') AS voucher_date, paid, payment_method_id, payment_method_name
+            DATE_FORMAT(voucher_date,'%Y-%m-%d') AS voucher_date, paid, payment_method_id, payment_method_name,details
             FROM payout 
             WHERE $where";
 
@@ -136,6 +136,7 @@ function createPayout($conn, $compID, $obj)
     $voucher_date = $obj['voucher_date'] ?? null;
     $paid = $obj['paid'] ?? null;
     $payment_method_id = $obj['payment_method_id'] ?? null;
+     $details = $obj['details'] ?? null;
 
     if ($voucher_date) {
         $dateParts = explode('-', $voucher_date);
@@ -171,10 +172,10 @@ function createPayout($conn, $compID, $obj)
         if ($companyDetailsResult) {
             $companyData = json_encode($companyDetailsResult[0]);
 
-            $sqlInsert = "INSERT INTO payout (company_id, party_id, party_details, voucher_date, paid, company_details, payment_method_id, payment_method_name, delete_at)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, '0')";
+            $sqlInsert = "INSERT INTO payout (company_id, party_id, party_details, voucher_date, paid, company_details, payment_method_id, payment_method_name, details,delete_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,'0')";
             $stmt = $conn->prepare($sqlInsert);
-            $stmt->bind_param('ssssssss', $compID, $party_id, $party_details, $voucher_date, $paid, $companyData, $payment_method_id, $payment_method_name);
+            $stmt->bind_param('sssssssss', $compID, $party_id, $party_details, $voucher_date, $paid, $companyData, $payment_method_id, $payment_method_name,$details);
 
             if ($stmt->execute()) {
                 $insertId = $conn->insert_id;
@@ -220,6 +221,8 @@ function updatePayout($conn, $compID, $obj)
     $voucher_date = $obj['voucher_date'] ?? null;
     $paid = $obj['paid'] ?? null;
     $payment_method_id = $obj['payment_method_id'] ?? null;
+     $details = $obj['details'] ?? null;
+
 
     if (!$payout_id || !$party_id || !$voucher_date || !$paid || !$payment_method_id) {
         return ['status' => 400, 'msg' => 'Parameter MisMatch'];
@@ -253,9 +256,9 @@ function updatePayout($conn, $compID, $obj)
         return ['status' => 400, 'msg' => 'Party not found'];
     }
 
-    $sql = "UPDATE payout SET party_id=?, party_details=?, voucher_date=?, paid=?, payment_method_id=?, payment_method_name=? WHERE payout_id=? AND company_id=?";
+    $sql = "UPDATE payout SET party_id=?, party_details=?, voucher_date=?, paid=?, payment_method_id=?, payment_method_name=?, details=? WHERE payout_id=? AND company_id=?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('ssssssss', $party_id, $party_details, $voucher_date, $paid, $payment_method_id, $payment_method_name, $payout_id, $compID);
+    $stmt->bind_param('sssssssss', $party_id, $party_details, $voucher_date, $paid, $payment_method_id, $payment_method_name, $details, $payout_id, $compID);
 
     if ($stmt->execute()) {
         return ['status' => 200, 'msg' => 'Payout Details Updated Successfully'];

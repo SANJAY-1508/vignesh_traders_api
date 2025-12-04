@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
 
     $sql = "SELECT payin_id, party_id, party_details, receipt_no, company_details,
                    DATE_FORMAT(receipt_date, '%Y-%m-%d') AS receipt_date, 
-                   paid, payment_method_id, payment_method_name, created_date
+                   paid, payment_method_id, payment_method_name,details, created_date
             FROM payin 
             WHERE $where";
 
@@ -155,6 +155,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     $receipt_date = $obj['receipt_date'] ?? null;
     $paid = $obj['paid'] ?? null;
     $payment_method_id = $obj['payment_method_id'] ?? null;
+     $details = $obj['details'] ?? null;
 
     // Initialize output array
     $output = [
@@ -243,8 +244,8 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     $payinDate = date('Y-m-d', strtotime($receipt_date));
 
     // Insert payin record
-    $sqlReceipt = "INSERT INTO payin (company_id, party_id, party_details, receipt_date, paid, company_details, payment_method_id, payment_method_name, delete_at) 
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, '0')";
+   $sqlReceipt = "INSERT INTO payin (company_id, party_id, party_details, receipt_date, paid, company_details, payment_method_id, payment_method_name, details, delete_at) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '0')";
 
     $stmt = $conn->prepare($sqlReceipt);
     if ($stmt === false) {
@@ -255,8 +256,8 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     }
 
     // Bind parameters
-    if ($party_id && $payinDate && $paid && $companyDataJson && $payment_method_id && $payment_method_name) {
-        $stmt->bind_param("ssssssss", $compID, $party_id, $partyDetailsJson, $payinDate, $paid, $companyDataJson, $payment_method_id, $payment_method_name);
+    if ($party_id && $payinDate && $paid && $companyDataJson && $payment_method_id && $payment_method_name && $details) {
+       $stmt->bind_param("sssssssss", $compID, $party_id, $partyDetailsJson, $payinDate, $paid, $companyDataJson, $payment_method_id, $payment_method_name,$details);
     } else {
         $output['status'] = 400;
         $output['msg'] = "One or more variables are undefined.";
@@ -349,6 +350,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     $receipt_date = $obj['receipt_date'] ?? null;
     $paid = $obj['paid'] ?? null;
     $payment_method_id = $obj['payment_method_id'] ?? null;
+     $details = $obj['details'] ?? null;
 
     if (!$payin_id || !$party_id || !$receipt_date || !$paid || !$payment_method_id) {
         $output['status'] = 400;
@@ -385,7 +387,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
 
 
     $sql = "UPDATE payin 
-            SET party_id = ?, party_details = ?, receipt_date = ?, paid = ?, payment_method_id = ?, payment_method_name = ? 
+            SET party_id = ?, party_details = ?, receipt_date = ?, paid = ?, payment_method_id = ?, payment_method_name = ?,details = ? 
             WHERE payin_id = ? AND company_id = ?";
 
     $params = [
@@ -395,6 +397,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
         $paid,
         $payment_method_id,
         $payment_method_name,
+        $details,
         $payin_id,
         $compID
     ];
