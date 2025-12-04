@@ -136,7 +136,7 @@ function createPayout($conn, $compID, $obj)
     $voucher_date = $obj['voucher_date'] ?? null;
     $paid = $obj['paid'] ?? null;
     $payment_method_id = $obj['payment_method_id'] ?? null;
-     $details = $obj['details'] ?? null;
+    $details = $obj['details'] ?? null;
 
     if ($voucher_date) {
         $dateParts = explode('-', $voucher_date);
@@ -175,7 +175,7 @@ function createPayout($conn, $compID, $obj)
             $sqlInsert = "INSERT INTO payout (company_id, party_id, party_details, voucher_date, paid, company_details, payment_method_id, payment_method_name, details,delete_at)
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,'0')";
             $stmt = $conn->prepare($sqlInsert);
-            $stmt->bind_param('sssssssss', $compID, $party_id, $party_details, $voucher_date, $paid, $companyData, $payment_method_id, $payment_method_name,$details);
+            $stmt->bind_param('sssssssss', $compID, $party_id, $party_details, $voucher_date, $paid, $companyData, $payment_method_id, $payment_method_name, $details);
 
             if ($stmt->execute()) {
                 $insertId = $conn->insert_id;
@@ -221,7 +221,7 @@ function updatePayout($conn, $compID, $obj)
     $voucher_date = $obj['voucher_date'] ?? null;
     $paid = $obj['paid'] ?? null;
     $payment_method_id = $obj['payment_method_id'] ?? null;
-     $details = $obj['details'] ?? null;
+    $details = $obj['details'] ?? null;
 
 
     if (!$payout_id || !$party_id || !$voucher_date || !$paid || !$payment_method_id) {

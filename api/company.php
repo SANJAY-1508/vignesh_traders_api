@@ -20,7 +20,7 @@ $timestamp = date('Y-m-d H:i:s');
 
 // List Function
 if (isset($obj->search_text)) {
-    $sql = "SELECT company_id, company_name, mobile_number, gst_no, address, city, state, bill_prefix, fssai_code, bank_name, ifsc_code, acc_no, upi_no FROM company WHERE delete_at = '0'";
+    $sql = "SELECT company_id, company_name, mobile_number, gst_no, address, city, state, bill_prefix, fssai_code, bank_name, ifsc_code,acc_name, acc_no, upi_no FROM company WHERE delete_at = '0'";
     $result = $conn->query($sql);
 
     if ($result->num_rows > 0) {
@@ -49,15 +49,16 @@ if (isset($obj->search_text)) {
 
     // Optional fields (nullable)
     $fssai_code = isset($obj->fssai_code) ? $obj->fssai_code : null;
+    $acc_name = isset($obj->acc_name) ? $obj->acc_name : null;
     $bank_name = isset($obj->bank_name) ? $obj->bank_name : null;
     $ifsc_code = isset($obj->ifsc_code) ? $obj->ifsc_code : null;
     $acc_no = isset($obj->acc_no) ? $obj->acc_no : null;
     $upi_no = isset($obj->upi_no) ? $obj->upi_no : null;
 
     // Update query
-    $sql = "UPDATE company SET company_name=?, mobile_number=?, gst_no=?, address=?, city=?, state=?, bill_prefix=?, fssai_code=?, bank_name=?, ifsc_code=?, acc_no=?, upi_no=? WHERE company_id=?";
+    $sql = "UPDATE company SET company_name=?, mobile_number=?, gst_no=?, address=?, city=?, state=?, bill_prefix=?, fssai_code=?, bank_name=?, ifsc_code=?,acc_name=?, acc_no=?, upi_no=? WHERE company_id=?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssssssssssssi", $company_name, $mobile_number, $gst_no, $address, $city, $state, $bill_prefix, $fssai_code, $bank_name, $ifsc_code, $acc_no, $upi_no, $company_id);
+    $stmt->bind_param("ssssssssssssss", $company_name, $mobile_number, $gst_no, $address, $city, $state, $bill_prefix, $fssai_code, $bank_name, $ifsc_code, $acc_name, $acc_no, $upi_no, $company_id);
 
     if ($stmt->execute()) {
         $output["status"] = 200;

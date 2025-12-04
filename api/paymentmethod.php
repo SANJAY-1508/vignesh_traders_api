@@ -1,8 +1,8 @@
 <?php
 include 'config/dbconfig.php';
 header('Content-Type: application/json; charset=utf-8');
-header("Access-Control-Allow-Origin: http://localhost:3000"); 
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE"); 
+header("Access-Control-Allow-Origin: http://localhost:3000");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
 header("Access-Control-Allow-Headers: Content-Type, Authorization"); // Allow headers
 header("Access-Control-Allow-Credentials: true"); // If needed for cookies/auth
 
@@ -48,7 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
 // Create Payment Method
 else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['payment_method_name'])) {
     $payment_method_name = $obj['payment_method_name'];
-    $sql = "SELECT * FROM payment_methods WHERE payment_method_name = ? AND company_id = ?";
+    $sql = "SELECT * FROM payment_methods 
+        WHERE payment_method_name = ? 
+        AND company_id = ? 
+        AND delete_at = 0";
+
     $existingPaymentMethod = fetchQuery($conn, $sql, [$payment_method_name, $compID]);
 
     if (count($existingPaymentMethod) > 0) {
@@ -61,7 +65,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['payment_method_name
 
         if ($stmt->execute()) {
             $insertId = $conn->insert_id;
-            $uniqueID = "PM" . str_pad($insertId, 4, '0', STR_PAD_LEFT); 
+            $uniqueID = "PM" . str_pad($insertId, 4, '0', STR_PAD_LEFT);
             $sqlUpdate = "UPDATE payment_methods SET payment_method_id = ? WHERE id = ? AND company_id = ?";
             $stmtUpdate = $conn->prepare($sqlUpdate);
             $stmtUpdate->bind_param('sis', $uniqueID, $insertId, $compID);
@@ -130,4 +134,3 @@ else if ($_SERVER['REQUEST_METHOD'] == 'DELETE') {
 }
 
 echo json_encode($output, JSON_NUMERIC_CHECK);
-?>

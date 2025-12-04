@@ -42,12 +42,14 @@ if (isset($obj->search_text)) {
 }
 
 // <<<<<<<<<<===================== This is to Create and Edit users =====================>>>>>>>>>>
-else if (isset($obj->name) && isset($obj->phone_number) && isset($obj->password)) {
+else if (isset($obj->name) && isset($obj->phone_number) && isset($obj->password) && isset($obj->user_type) && isset($obj->staff_permission)) {
 
 
     $name = $obj->name;
     $phone_number = $obj->phone_number;
     $password = $obj->password;
+    $user_type = $obj->user_type;
+    $staff_permission = $obj->staff_permission;
 
 
     if (!empty($name) && !empty($phone_number) && !empty($password)) {
@@ -62,7 +64,7 @@ else if (isset($obj->name) && isset($obj->phone_number) && isset($obj->password)
 
 
 
-                    $updateUser = "UPDATE `users` SET `name`='$name', `phone_number`='$phone_number', `password`='$password' WHERE `user_id`='$edit_id'";
+                    $updateUser = "UPDATE `users` SET `name`='$name', `phone_number`='$phone_number', `password`='$password', `user_type`='$user_type', `staff_permission`='$staff_permission' WHERE `user_id`='$edit_id'";
 
 
                     if ($conn->query($updateUser)) {
@@ -78,7 +80,7 @@ else if (isset($obj->name) && isset($obj->phone_number) && isset($obj->password)
                     if ($mobileCheck->num_rows == 0) {
 
 
-                        $createUser = "INSERT INTO `users` (`name`, `phone_number`,`password`, `delete_at`) VALUES ('$name', '$phone_number',  '$password', '0') ";
+                        $createUser = "INSERT INTO `users` (`name`, `phone_number`,`password` ,`user_type` ,`staff_permission`, `delete_at`) VALUES ('$name', '$phone_number',  '$password',  '$user_type',  '$staff_permission', '0') ";
 
                         if ($conn->query($createUser)) {
                             $id = $conn->insert_id;

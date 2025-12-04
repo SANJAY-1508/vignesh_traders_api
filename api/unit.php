@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
 // Create Unit
 else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['unit_name'])) {
     $unit_name = $obj['unit_name'];
-     $short_name = $obj['short_name'];
+    $short_name = $obj['short_name'];
 
     if (!$unit_name) {
         $output['status'] = 400;

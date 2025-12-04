@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
 else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['category_name'])) {
     $category_name = $obj['category_name'];
 
-    $sql = "SELECT * FROM category WHERE category_name = ? AND company_id = ?";
+    $sql = "SELECT * FROM category WHERE category_name = ? AND company_id = ? AND delete_at = 0";
     $existingCategory = fetchQuery($conn, $sql, [$category_name, $compID]);
 
     if (count($existingCategory) > 0) {
