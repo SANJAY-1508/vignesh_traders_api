@@ -76,7 +76,7 @@ else if (isset($obj->name) && isset($obj->phone_number) && isset($obj->password)
                     }
                 } else {
 
-                    $mobileCheck = $conn->query("SELECT * FROM `users` WHERE `phone_number`='$phone_number'");
+                  $mobileCheck = $conn->query("SELECT * FROM `users` WHERE `phone_number`='$phone_number' AND `delete_at`='0'");
                     if ($mobileCheck->num_rows == 0) {
 
 

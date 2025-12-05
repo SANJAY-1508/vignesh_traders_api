@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
                     DATE_FORMAT(bill_date, '%Y-%m-%d') as bill_date, 
                     DATE_FORMAT(stock_date, '%Y-%m-%d') as stock_date,
                     sum_total, product, purchase_gst, purchasemobile_no,
-                    total, paid, balance, company_details
+                    total, paid, balance_amount, company_details
                 FROM purchase WHERE " . implode(' AND ', $conditions);
 
         $result = fetchQuery($conn, $sql, $parameters);
@@ -109,10 +109,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
         $purchasemobile_no = $obj['purchasemobile_no'];
         $total = $obj['total'];
         $paid = $obj['paid'];
-        $balance = isset($obj['balance']) ? $obj['balance'] : 0;
+        $balance_amount = isset($obj['balance_amount']) ? $obj['balance_amount'] : 0;
 
 
-        if (!$purchase_id || !$party_id || !$bill_date || !$stock_date || !$product || !$total || !$paid || !$balance) {
+        if (!$purchase_id || !$party_id || !$bill_date || !$stock_date || !$product || !$total || !$paid || !$balance_amount) {
             $output = ['status' => 400, 'msg' => 'Parameter Mismatch'];
 
             exit();
@@ -146,10 +146,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
             $party_details_json = json_encode($party_details[0]);
             $product_json = json_encode($product);
 
-            $sql = "UPDATE purchase SET party_id = ?, party_details = ?, bill_date = ?, stock_date = ?, total = ?, paid = ?, balance = ?, sum_total = ?, product = ?, purchase_gst = ?, purchasemobile_no = ? 
+            $sql = "UPDATE purchase SET party_id = ?, party_details = ?, bill_date = ?, stock_date = ?, total = ?, paid = ?, balance_amount = ?, sum_total = ?, product = ?, purchase_gst = ?, purchasemobile_no = ? 
                     WHERE purchase_id = ? AND company_id = ?";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param('sssssssssssss', $party_id, $party_details_json, $bill_date, $stock_date, $total, $paid, $balance, $sum_total, $product_json, $purchase_gst, $purchasemobile_no, $purchase_id, $compID);
+            $stmt->bind_param('sssssssssssss', $party_id, $party_details_json, $bill_date, $stock_date, $total, $paid, $balance_amount, $sum_total, $product_json, $purchase_gst, $purchasemobile_no, $purchase_id, $compID);
 
             if ($stmt->execute()) {
                 $output = ['status' => 200, 'msg' => 'Purchase Bill Updated Successfully'];
@@ -174,7 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
         $purchasemobile_no = $obj['purchasemobile_no'];
         $total = $obj['total'];
         $paid = $obj['paid'];
-        $balance = isset($obj['balance']) ? $obj['balance'] : 0;
+        $balance_amount = isset($obj['balance_amount']) ? $obj['balance_amount'] : 0;
         $delete_at = 0;
 
         // Validate required parameters
@@ -236,10 +236,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
             $product_json = json_encode($product);
             $company_details_json = json_encode(fetchQuery($conn, "SELECT * FROM company WHERE company_id = ?", [$compID])[0]);
 
-            $sql = "INSERT INTO purchase (company_id, party_id, party_details, bill_date, stock_date, bill_no, total, paid, balance, sum_total, product, purchase_gst, purchasemobile_no, company_details, delete_at) 
+            $sql = "INSERT INTO purchase (company_id, party_id, party_details, bill_date, stock_date, bill_no, total, paid, balance_amount, sum_total, product, purchase_gst, purchasemobile_no, company_details, delete_at) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param('sssssssssssssss', $compID, $party_id, $party_details_json, $bill_date, $stock_date, $bill_no, $total, $paid, $balance, $sum_total, $product_json, $purchase_gst, $purchasemobile_no, $company_details_json, $delete_at);
+            $stmt->bind_param('sssssssssssssss', $compID, $party_id, $party_details_json, $bill_date, $stock_date, $bill_no, $total, $paid, $balance_amount, $sum_total, $product_json, $purchase_gst, $purchasemobile_no, $company_details_json, $delete_at);
 
             if ($stmt->execute()) {
                 $insertId = $conn->insert_id;

@@ -60,7 +60,7 @@ if (isset($obj->search_text)) {
             // ----------------------------------------
             $purchase_sql = "SELECT purchase_id, bill_no, 
                              DATE_FORMAT(bill_date, '%Y-%m-%d') as bill_date, 
-                             total, paid, balance 
+                             total, paid, balance_amount  AS balance
                              FROM purchase 
                              WHERE delete_at = '0' 
                              AND company_id = '$company_id'
