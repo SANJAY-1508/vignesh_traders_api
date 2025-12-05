@@ -155,7 +155,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     $receipt_date = $obj['receipt_date'] ?? null;
     $paid = $obj['paid'] ?? null;
     $payment_method_id = $obj['payment_method_id'] ?? null;
-     $details = $obj['details'] ?? null;
+    $details = $obj['details'] ?? null;
 
     // Initialize output array
     $output = [
@@ -244,7 +244,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     $payinDate = date('Y-m-d', strtotime($receipt_date));
 
     // Insert payin record
-   $sqlReceipt = "INSERT INTO payin (company_id, party_id, party_details, receipt_date, paid, company_details, payment_method_id, payment_method_name, details, delete_at) 
+    $sqlReceipt = "INSERT INTO payin (company_id, party_id, party_details, receipt_date, paid, company_details, payment_method_id, payment_method_name, details, delete_at) 
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '0')";
 
     $stmt = $conn->prepare($sqlReceipt);
@@ -256,8 +256,8 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     }
 
     // Bind parameters
-    if ($party_id && $payinDate && $paid && $companyDataJson && $payment_method_id && $payment_method_name && $details) {
-       $stmt->bind_param("sssssssss", $compID, $party_id, $partyDetailsJson, $payinDate, $paid, $companyDataJson, $payment_method_id, $payment_method_name,$details);
+    if ($party_id && $payinDate && $paid && $companyDataJson && $payment_method_id && $payment_method_name) {
+        $stmt->bind_param("sssssssss", $compID, $party_id, $partyDetailsJson, $payinDate, $paid, $companyDataJson, $payment_method_id, $payment_method_name, $details);
     } else {
         $output['status'] = 400;
         $output['msg'] = "One or more variables are undefined.";
@@ -350,7 +350,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     $receipt_date = $obj['receipt_date'] ?? null;
     $paid = $obj['paid'] ?? null;
     $payment_method_id = $obj['payment_method_id'] ?? null;
-     $details = $obj['details'] ?? null;
+    $details = $obj['details'] ?? null;
 
     if (!$payin_id || !$party_id || !$receipt_date || !$paid || !$payment_method_id) {
         $output['status'] = 400;
