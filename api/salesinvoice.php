@@ -1,3 +1,5 @@
+ 
+
 <?php
 include 'config/dbconfig.php';
 header('Content-Type: application/json; charset=utf-8');
@@ -79,6 +81,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     $balance_amount = isset($obj['balance_amount']) && $obj['balance_amount'] !== '' ? $obj['balance_amount'] : 0;
     $mobile_number = $obj['mobile_number'];
     $state_of_supply = $obj['state_of_supply'];
+    $bill_no = isset($obj['bill_no']) ? $obj['bill_no'] : NULL;
     $payment_method = $obj['payment_method'];
     $remark = isset($obj['remark']) && $obj['remark'] !== '' ? $obj['remark'] : '';
     $discount = isset($obj['discount']) && $obj['discount'] !== '' ? $obj['discount'] : 0;
@@ -140,10 +143,10 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
         $billDate = date('Y-m-d', strtotime($bill_date));
         $delete_at = 0;
         // Insert invoice into database
-        $sqlinvoice = "INSERT INTO invoice (company_id, party_id,party_name, party_details, bill_date, product, sub_total, discount,discount_amount,discount_type,gst_type,gst_amount, total, paid, balance, delete_at, eway_no, vechile_no, address, mobile_number, company_details, sum_total, round_off, round_off_amount, state_of_supply, remark, payment_method)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $sqlinvoice = "INSERT INTO invoice (company_id,bill_no, party_id,party_name, party_details, bill_date, product, sub_total, discount,discount_amount,discount_type,gst_type,gst_amount, total, paid, balance, delete_at, eway_no, vechile_no, address, mobile_number, company_details, sum_total, round_off, round_off_amount, state_of_supply, remark, payment_method)
+               VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sqlinvoice);
-        $stmt->bind_param("ssssssddsssssisssssssssdsss", $compID, $party_id, $party_name, $party_details_json, $billDate, $product_json, $subtotal, $discount, $discount_amount, $discount_type, $gst_type, $gst_amount, $total, $paid, $balance_amount, $delete_at, $eway_no, $vechile_no, $address, $mobile_number, $companyData, $sum_total, $round_off, $round_off_amount, $state_of_supply, $remark, $payment_method);
+        $stmt->bind_param("sssssssddsssssisssssssssdsss", $compID, $bill_no,$party_id, $party_name, $party_details_json, $billDate, $product_json, $subtotal, $discount, $discount_amount, $discount_type, $gst_type, $gst_amount, $total, $paid, $balance_amount, $delete_at, $eway_no, $vechile_no, $address, $mobile_number, $companyData, $sum_total, $round_off, $round_off_amount, $state_of_supply, $remark, $payment_method);
         if ($stmt->execute()) {
             $id = $conn->insert_id;
         } else {
@@ -151,30 +154,13 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
             exit();
         }
         // Generate unique invoice ID
-        $uniqueID = uniqueID("invoice", $id);
-        // Fetch the last bill number from the database
-        $lastBillSql = "SELECT bill_no FROM invoice WHERE company_id = ? AND bill_no IS NOT NULL ORDER BY id DESC LIMIT 1";
-        $resultLastBill = fetchQuery($conn, $lastBillSql, [$compID]);
-        // Fetch bill prefix from the company settings
-        $billPrefixSql = "SELECT bill_prefix FROM company WHERE company_id = ?";
-        $resultBillPrefix = fetchQuery($conn, $billPrefixSql, [$compID]);
-        // Determine the fiscal year
-        $year = date('y');
-        $fiscal_year = ($year . '-' . ($year + 1));
-        // Initialize the bill number
-        $billcount = 1;
-        if (!empty($resultLastBill[0]['bill_no'])) {
-            preg_match('/\/(\d+)\/\d{2}-\d{2}$/', $resultLastBill[0]['bill_no'], $matches);
-            if (isset($matches[1])) { // Fixed: Changed matches1 to matches[1]
-                $billcount = (int) $matches[1] + 1;
-            }
-        }
-        $billcountFormatted = str_pad($billcount, 3, '0', STR_PAD_LEFT);
-        $bill_no = $resultBillPrefix[0]['bill_prefix'] . '/' . $billcountFormatted . '/' . $fiscal_year;
-        // Update the invoice with generated ID and new bill number
-        $sqlUpdate = "UPDATE invoice SET invoice_id = ?, bill_no = ? WHERE id = ? AND company_id = ?";
+      $uniqueID = uniqueID("invoice", $id);
+        
+        // Update the invoice with only the generated unique ID
+        $sqlUpdate = "UPDATE invoice SET invoice_id = ? WHERE id = ? AND company_id = ?";
         $stmtUpdate = $conn->prepare($sqlUpdate);
-        $stmtUpdate->bind_param("ssis", $uniqueID, $bill_no, $id, $compID);
+        $stmtUpdate->bind_param("sis", $uniqueID, $id, $compID);
+        
         if (!$stmtUpdate->execute()) {
             echo json_encode(['status' => 400, 'msg' => 'Invoice Update Failed']);
             exit();
@@ -182,7 +168,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
         echo json_encode([
             'status' => 200,
             'msg' => 'Invoice Created Successfully',
-            'data' => ['invoice_id' => $uniqueID],
+            'data' => ['invoice_id' => $uniqueID,'bill_no' => $bill_no],
         ]);
         exit(); // Stop execution after sending the final response
     } catch (Exception $error) {
