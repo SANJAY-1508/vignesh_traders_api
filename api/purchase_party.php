@@ -60,7 +60,7 @@ if (isset($obj->search_text)) {
             // ----------------------------------------
             $purchase_sql = "SELECT purchase_id, bill_no, 
                              DATE_FORMAT(bill_date, '%Y-%m-%d') as bill_date, 
-                             total, paid, balance_amount  AS balance
+                             total, paid, balance_amount  AS balance,remark,payment_method
                              FROM purchase 
                              WHERE delete_at = '0' 
                              AND company_id = '$company_id'
@@ -80,7 +80,9 @@ if (isset($obj->search_text)) {
                     "receipt_no" => $p["bill_no"],
                     "amount"     => $p["total"],
                     "paid"       => $p["paid"],
-                    "balance"    => $p["balance"]
+                    "balance"    => $p["balance"],
+                    "details"    => $p["remark"],
+                    "payment_method" => $p["payment_method"]
                 ];
             }
 
@@ -89,7 +91,7 @@ if (isset($obj->search_text)) {
             // ----------------------------------------
             $payout_sql = "SELECT payout_id, voucher_no,details,
                            DATE_FORMAT(voucher_date, '%Y-%m-%d') as voucher_date,
-                           paid
+                           paid,payment_method_name
                            FROM payout
                            WHERE delete_at = '0'
                            AND company_id = '$company_id'
@@ -110,6 +112,7 @@ if (isset($obj->search_text)) {
                     "amount"     => $pay["paid"],
                     "paid"       => $pay["paid"],
                     "details"    => $pay["details"],
+                    "payment_method" => $pay["payment_method_name"],
                     "balance"    => "0"
                 ];
             }

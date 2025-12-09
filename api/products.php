@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
         $parameters[] = $from_date;
         $parameters[] = $to_date;
     }
-    $sql = "SELECT id, company_id, product_id, product_name, hsn_no, item_code, item_gst, unit_id, subunit_id, unit_rate, opening_stock, opening_date, min_stock, crt_stock, created_date
+    $sql = "SELECT id, company_id, product_id, category_id, product_name, hsn_no, item_code, item_gst, unit_id, subunit_id, unit_rate, opening_stock, opening_date, min_stock, crt_stock, created_date
             FROM product
             WHERE " . implode(' AND ', $conditions) . "
             ORDER BY id DESC";
@@ -71,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
 }
 // Create Product
 else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['product_name'])) {
+    $category_id = $obj['category_id'];
     $product_name = $obj['product_name'];
     $hsn_no = $obj['hsn_no'];
     $item_code = $obj['item_code'];
@@ -86,7 +87,7 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['product_name'])) {
     $created_date = date('Y-m-d H:i:s');
     try {
         // Parameter validation
-        if (!$product_name || !$unit_id || !$unit_rate) {
+        if (!$category_id || !$product_name || !$unit_id || !$unit_rate) {
             echo json_encode([
                 'status' => 400,
                 'msg' => "Parameter Mismatch",
@@ -94,10 +95,10 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['product_name'])) {
             exit();
         }
         // Insert product into database
-        $sql = "INSERT INTO product (company_id,  product_name, hsn_no, item_code, item_gst, unit_id, subunit_id, unit_rate, opening_stock, opening_date, min_stock, crt_stock, delete_at, created_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO product (company_id, category_id, product_name, hsn_no, item_code, item_gst, unit_id, subunit_id, unit_rate, opening_stock, opening_date, min_stock, crt_stock, delete_at, created_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("sssssssidsddis", $compID, $product_name, $hsn_no, $item_code, $item_gst, $unit_id, $subunit_id, $unit_rate, $opening_stock, $opening_date, $min_stock, $crt_stock, $delete_at, $created_date);
+        $stmt->bind_param("ssssssssidsddis", $compID, $category_id, $product_name, $hsn_no, $item_code, $item_gst, $unit_id, $subunit_id, $unit_rate, $opening_stock, $opening_date, $min_stock, $crt_stock, $delete_at, $created_date);
         if ($stmt->execute()) {
             $id = $conn->insert_id;
         } else {

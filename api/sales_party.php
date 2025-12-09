@@ -59,7 +59,7 @@ if (isset($obj->search_text)) {
             // -------------------------------------------------------
             $invoice_sql = "SELECT invoice_id, bill_no, 
                                    DATE_FORMAT(bill_date, '%Y-%m-%d') AS bill_date, 
-                                   total, created_date, paid, balance
+                                   total, created_date, paid, balance,payment_method,remark
                             FROM invoice 
                             WHERE delete_at = '0'
                             AND company_id = ?
@@ -87,6 +87,8 @@ if (isset($obj->search_text)) {
                     "paid"       => $inv["paid"],
                     "balance"    => $inv["balance"],
                     "create_date" => $inv["created_date"],
+                    "details"  => $inv["remark"],
+                    "payment_method" => $inv["payment_method"]
 
                 ];
             }
@@ -96,7 +98,7 @@ if (isset($obj->search_text)) {
             // -------------------------------------------------------
             $payin_sql = "SELECT payin_id, receipt_no, details,
                                  DATE_FORMAT(receipt_date, '%Y-%m-%d') AS receipt_date,
-                                 paid, created_date
+                                 paid, created_date,payment_method_name
                           FROM payin 
                           WHERE delete_at = '0'
                           AND company_id = ?
@@ -125,6 +127,7 @@ if (isset($obj->search_text)) {
                     "balance"    => "0",
                     "create_date" => $pay["created_date"],
                     "details"    => $pay["details"],
+                    "payment_method" => $pay["payment_method_name"],
                 ];
             }
 
