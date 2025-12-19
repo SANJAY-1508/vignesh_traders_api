@@ -56,12 +56,15 @@ elseif ($action === 'createStaff') {
     $mobile_number = $obj->mobile_number ?? null;
     $role = $obj->role ?? null;
     $place = $obj->place ?? null;
+    $wages_amount = $obj->wages_amount ?? null;
 
     // Validate Required Fields
-    if ($staff_name && $mobile_number && $role && $place) {
+    if ($staff_name) {
         // Prepare and execute the insert query for the staff
-        $stmt = $conn->prepare("INSERT INTO staff (staff_name, mobile_number, role, place, create_at) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssss", $staff_name, $mobile_number, $role, $place, $timestamp);
+        $stmt = $conn->prepare("INSERT INTO staff (staff_name, mobile_number, role, place,wages_amount
+, create_at) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssssss", $staff_name, $mobile_number, $role, $place,$wages_amount
+, $timestamp);
 
         if ($stmt->execute()) {
             // Get the inserted staff ID
@@ -106,11 +109,12 @@ elseif ($action === 'updateStaff') {
     $mobile_number = $obj->mobile_number ?? null;
     $role = $obj->role ?? null;
     $place = $obj->place ?? null;
+    $wages_amount = $obj->wages_amount ?? null;
 
     // Validate Required Fields
-    if ($edit_staff_id && $staff_name && $mobile_number && $role && $place) {
-        $stmt = $conn->prepare("UPDATE staff SET staff_name = ?, mobile_number = ?, role = ?, place = ? WHERE id = ?");
-        $stmt->bind_param("ssssi", $staff_name, $mobile_number, $role, $place, $edit_staff_id);
+    if ($edit_staff_id && $staff_name ) {
+        $stmt = $conn->prepare("UPDATE staff SET staff_name = ?, mobile_number = ?, role = ?, place = ?, wages_amount = ? WHERE id = ?");
+        $stmt->bind_param("sssssi", $staff_name, $mobile_number, $role, $place,$wages_amount, $edit_staff_id);
 
         if ($stmt->execute()) {
             $response = [

@@ -52,23 +52,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['search_text'])) {
         $parameters[] = $to_date;
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 $sql = "SELECT id, company_id, product_id, product_name, hsn_no, item_code, item_gst, unit_id, subunit_id, unit_rate, opening_stock, opening_date, min_stock, crt_stock, created_date
             FROM product
             WHERE " . implode(' AND ', $conditions) . "

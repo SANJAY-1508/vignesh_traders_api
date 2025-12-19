@@ -59,7 +59,7 @@ if (isset($obj->search_text)) {
             // -------------------------------------------------------
             $invoice_sql = "SELECT invoice_id, bill_no, 
                                    DATE_FORMAT(bill_date, '%Y-%m-%d') AS bill_date, 
-                                   total, created_date, paid, balance,payment_method,remark
+                                   total, created_date, paid, balance,payment_method,remark,gst_amount,product
                             FROM invoice 
                             WHERE delete_at = '0'
                             AND company_id = ?
@@ -88,8 +88,9 @@ if (isset($obj->search_text)) {
                     "balance"    => $inv["balance"],
                     "create_date" => $inv["created_date"],
                     "details"  => $inv["remark"],
-                    "payment_method" => $inv["payment_method"]
-
+                    "gst" =>$inv["gst_amount"],
+                    "payment_method" => $inv["payment_method"],
+                    "product" =>$inv["product"]
                 ];
             }
 
@@ -128,6 +129,8 @@ if (isset($obj->search_text)) {
                     "create_date" => $pay["created_date"],
                     "details"    => $pay["details"],
                     "payment_method" => $pay["payment_method_name"],
+                     "gst" =>"0.00",
+                      "product" =>[]
                 ];
             }
 
@@ -137,6 +140,106 @@ if (isset($obj->search_text)) {
             });
 
             $row["transactions"] = $transactions;
+            
+            $balanceSheet = [];
+            $runningBalance = 0;
+            foreach ($transactions as $txn) {
+
+                $entry = [
+                    "Date"        => $txn["date"],
+                    "Particulars" => "",
+                    "Credit"      => "0",
+                    "Debit"       => "0",
+                    "Balance"     => "0"
+                ];
+            
+                // ----- INVOICE → DEBIT -----
+                if ($txn["type"] === "Invoice") {
+            
+                    // GST tag identification
+                    $particular = $txn["receipt_no"];
+                  if (isset($txn["gst"]) && is_numeric($txn["gst"]) && floatval($txn["gst"]) > 0) {
+    $particular .= " + GST";
+}
+$productData = $txn["product"];  // ensure "remark/details" holds JSON string
+
+if (!empty($productData)) {
+
+    $items = json_decode($productData, true);
+
+    if (is_array($items)) {
+
+        $productSummaryArr = [];
+
+        foreach ($items as $p) {
+
+            $productName   = $p["product_name"];
+            $qty           = $p["qty"];
+            $unitName      = $p["unit_name"];
+            $unitCount     = $p["unit_count"];
+            $priceUnit     = $p["price_unit"];
+
+            // Format → 20 BAGS
+            $unitDisplay = $unitCount . " " . strtoupper($unitName);
+
+            // Format calculation string → 40 × 1000
+            $calcString = $qty . " × " . $priceUnit;
+
+            // Final descriptor → 38 MM SPLINTS – 20 BAGS × (40 × 1000)
+            $productSummaryArr[] = $productName . " – " . $unitDisplay . " × (" . $calcString . ")";
+        }
+
+        // Merge all product descriptors
+        $productSummary = implode(" | ", $productSummaryArr);
+
+        // Append to ledger Particular
+        $particular .= " | " . $productSummary ."  ".$txn["details"];
+    }
+}
+
+            
+                    $entry["Particulars"] = $particular;
+                    $entry["Debit"]       = $txn["amount"];
+            
+                    $runningBalance += floatval($txn["amount"]);
+                }
+            
+                // ----- PAYIN → CREDIT -----
+                if ($txn["type"] === "Payin") {
+            
+                    $entry["Particulars"] = $txn["receipt_no"] . " Payin Paid";
+                    $entry["Credit"]      = $txn["amount"];
+            
+                    $runningBalance -= floatval($txn["amount"]);
+                }
+            
+                // ----- If amount paid inside invoice -----
+                if ($txn["type"] === "Invoice" && floatval($txn["paid"]) > 0) {
+            
+                    if ($txn["paid"] > 0) {
+                        $ledgerPay = [
+                            "Date"        => $txn["date"],
+                            "Particulars" => $txn["receipt_no"] . " Paid",
+                            "Credit"      => $txn["paid"],
+                            "Debit"       => "0",
+                            "Balance"     => "0"
+                        ];
+            
+                        $runningBalance -= floatval($txn["paid"]);
+                        $ledgerPay["Balance"] = number_format($runningBalance, 2, '.', '');
+            
+                        $balanceSheet[] = $ledgerPay;
+                    }
+                }
+            
+                $entry["Balance"] = number_format($runningBalance, 2, '.', '');
+            
+                $balanceSheet[] = $entry;
+            }
+            
+            // Attach to response
+            $row["party_wise_balance_sheet_report"] = $balanceSheet;
+
             $data[] = $row;
         }
 
