@@ -166,23 +166,25 @@ elseif ($action === 'deleteAttendance') {
         ];
     }
 }
+// Add Advance
 elseif ($action === 'addAdvance') {
     $staff_id      = $obj->staff_id ?? null;
     $staff_name    = $obj->staff_name ?? null;
     $amount        = (float) ($obj->amount ?? 0);
-    $type          = $obj->type ?? null; // 'add' or 'less'
+    $type          = $obj->type ?? null; 
     $recovery_mode = isset($obj->recovery_mode) ? trim($obj->recovery_mode) : null;
-    $date          = $obj->date ?? date('Y-m-d');
+    $date          = (!empty($obj->date)) ? $obj->date : date('Y-m-d');
 
-    // 1. Correct the Date Format (Fixes the Fatal Error)
+    // Standardize date format
     if (strpos($date, '/') !== false) {
         $parts = explode('/', $date);
-        $entry_date = (strlen($parts[2]) == 2 ? "20".$parts[2] : $parts[2])."-".$parts[1]."-".$parts[0];
+        $year = (strlen($parts[2]) == 2) ? "20".$parts[2] : $parts[2];
+        $entry_date = $year."-".$parts[1]."-".$parts[0];
     } else {
-        $entry_date = (new DateTime($date))->format('Y-m-d');
+        $entry_date = date('Y-m-d', strtotime($date));
     }
 
-    /* STEP 1: Fetch current staff master balance */
+    /* STEP 1: Fetch current staff master balance (Initial State) */
     $stmt = $conn->prepare("SELECT advance_balance FROM staff WHERE staff_id = ? AND delete_at = 0 LIMIT 1");
     $stmt->bind_param("s", $staff_id);
     $stmt->execute();
@@ -194,41 +196,43 @@ elseif ($action === 'addAdvance') {
         exit();
     }
 
-    $current_staff_balance = (float)$staff_data['advance_balance'];
+    $initial_balance = (float)$staff_data['advance_balance']; 
 
-    /* STEP 2: Check for existing salary deduction on this date to prevent double entry */
-    $checkStmt = $conn->prepare("
-        SELECT advance_id, amount FROM staff_advance 
-        WHERE staff_id = ? AND entry_date = ? AND recovery_mode = 'salary' 
-        LIMIT 1
-    ");
+    /* STEP 2: Check for existing record to calculate math correctly */
+    $checkStmt = $conn->prepare("SELECT advance_id, amount FROM staff_advance WHERE staff_id = ? AND entry_date = ? AND recovery_mode = 'salary' LIMIT 1");
     $checkStmt->bind_param("ss", $staff_id, $entry_date);
     $checkStmt->execute();
     $existingRecord = $checkStmt->get_result()->fetch_assoc();
     $checkStmt->close();
 
     if ($existingRecord) {
-        /* UPDATE CASE: Edit existing entry */
+        /* UPDATE CASE: Revert old amount first, then apply new amount */
         $old_amount = (float)$existingRecord['amount'];
         $advance_id = $existingRecord['advance_id'];
 
-        // Logic: Revert the old deduction and apply the new one
-        // If it was a deduction (less), we add back the old amount and subtract the new one
-        $new_balance = $current_staff_balance + $old_amount - $amount;
+        // Formula: Current Balance + Old Deduction - New Deduction
+        $new_balance = $initial_balance + $old_amount - $amount;
 
-        $upd = $conn->prepare("UPDATE staff_advance SET amount = ? WHERE advance_id = ?");
-        $upd->bind_param("ds", $amount, $advance_id);
-        $upd->execute();
-        $upd->close();
-    } else {
-        /* INSERT CASE: New entry */
-        $advance_id = uniqid('ADV');
-
-        // Logic: If 'add', balance goes UP. If 'less', balance goes DOWN.
-        if ($type === 'add') {
-            $new_balance = $current_staff_balance + $amount;
+        if ($amount === 0) {
+            $stmt = $conn->prepare("DELETE FROM staff_advance WHERE advance_id = ?");
+            $stmt->bind_param("s", $advance_id);
+            $stmt->execute();
+            $stmt->close();
         } else {
-            $new_balance = $current_staff_balance - $amount;
+            $stmt = $conn->prepare("UPDATE staff_advance SET amount = ? WHERE advance_id = ?");
+            $stmt->bind_param("ds", $amount, $advance_id);
+            $stmt->execute();
+            $stmt->close();
+        }
+    } else {
+        /* INSERT CASE: Brand new entry */
+        $advance_id = uniqid('ADV');
+        
+        // Corrected variable name: use $initial_balance here
+        if ($type === 'add') {
+            $new_balance = $initial_balance + $amount;
+        } else {
+            $new_balance = $initial_balance - $amount;
         }
 
         $ins = $conn->prepare("INSERT INTO staff_advance (advance_id, staff_id, staff_name, amount, type, recovery_mode, entry_date, created_at) VALUES (?,?,?,?,?,?,?,?)");
@@ -237,15 +241,67 @@ elseif ($action === 'addAdvance') {
         $ins->close();
     }
 
-    /* STEP 3: Update Staff Master Balance with the corrected math */
-    $stmt = $conn->prepare("UPDATE staff SET advance_balance = ? WHERE staff_id = ?");
-    $stmt->bind_param("ds", $new_balance, $staff_id);
-    $stmt->execute();
-    $stmt->close();
+    /* STEP 3: Update Staff Master Balance */
+   /* STEP 3: Update Staff Master Balance */
+$updStaff = $conn->prepare("UPDATE staff SET advance_balance = ? WHERE staff_id = ? AND delete_at = 0");
+$updStaff->bind_param("ds", $new_balance, $staff_id);
+
+if (!$updStaff->execute()) {
+    echo json_encode([
+        "head" => ["code" => 500, "msg" => "Database error updating staff balance: " . $updStaff->error]
+    ]);
+    exit();
+}
+
+if ($updStaff->affected_rows === 0) {
+    // This will now tell you exactly why it failed
+    echo json_encode([
+        "head" => ["code" => 400, "msg" => "Failed to update staff balance: No active staff found with ID {$staff_id}"]
+    ]);
+    exit();
+}
+
+$updStaff->close();
+
+    /* STEP 4: Update Attendance JSON Data */
+    $attStmt = $conn->prepare("SELECT id, data FROM attendance WHERE entry_date = ? AND delete_at = 0 LIMIT 1");
+    $attStmt->bind_param("s", $entry_date);
+    $attStmt->execute();
+    $attResult = $attStmt->get_result()->fetch_assoc();
+    $attStmt->close();
+
+    if ($attResult) {
+        $db_id = $attResult['id'];
+        $attendance_data = json_decode($attResult['data'], true);
+        $found = false;
+
+        foreach ($attendance_data as &$row) {
+            if (trim($row['staff_name']) === trim($staff_name)) {
+                // We store the balance AFTER the deduction as the current advance_balance
+                $row['initial_balance'] = $initial_balance; 
+                $row['advance_balance'] = $new_balance;     
+                $row['deduction_amount'] = ($type === 'less') ? $amount : 0; 
+                $found = true;
+                break;
+            }
+        }
+
+        if ($found) {
+            $new_json = json_encode($attendance_data);
+            $updAtt = $conn->prepare("UPDATE attendance SET data = ? WHERE id = ?");
+            $updAtt->bind_param("si", $new_json, $db_id);
+            $updAtt->execute();
+            $updAtt->close();
+        }
+    }
 
     echo json_encode([
-        "head" => ["code" => 200, "msg" => "Advance updated successfully"],
-        "body" => ["new_balance" => $new_balance]
+        "head" => ["code" => 200, "msg" => "Balance updated successfully"],
+        "body" => [
+            "initial" => $initial_balance, 
+            "new" => $new_balance,
+            "deduction" => $amount
+        ]
     ]);
     exit();
 }
