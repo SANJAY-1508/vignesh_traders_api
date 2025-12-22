@@ -166,117 +166,87 @@ elseif ($action === 'deleteAttendance') {
         ];
     }
 }
-
-
-
-// Invalid Action
 elseif ($action === 'addAdvance') {
-
     $staff_id      = $obj->staff_id ?? null;
     $staff_name    = $obj->staff_name ?? null;
     $amount        = (float) ($obj->amount ?? 0);
-    $type          = $obj->type ?? null;
+    $type          = $obj->type ?? null; // 'add' or 'less'
     $recovery_mode = isset($obj->recovery_mode) ? trim($obj->recovery_mode) : null;
     $date          = $obj->date ?? date('Y-m-d');
 
-    if (!$staff_id || !$staff_name || !$amount || !$type) {
-        echo json_encode([
-            "head" => ["code" => 400, "msg" => "Missing parameters"]
-        ]);
+    // 1. Correct the Date Format (Fixes the Fatal Error)
+    if (strpos($date, '/') !== false) {
+        $parts = explode('/', $date);
+        $entry_date = (strlen($parts[2]) == 2 ? "20".$parts[2] : $parts[2])."-".$parts[1]."-".$parts[0];
+    } else {
+        $entry_date = (new DateTime($date))->format('Y-m-d');
+    }
+
+    /* STEP 1: Fetch current staff master balance */
+    $stmt = $conn->prepare("SELECT advance_balance FROM staff WHERE staff_id = ? AND delete_at = 0 LIMIT 1");
+    $stmt->bind_param("s", $staff_id);
+    $stmt->execute();
+    $staff_data = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$staff_data) {
+        echo json_encode(["head" => ["code" => 400, "msg" => "Staff not found"]]);
         exit();
     }
 
-    if (!in_array($type, ['add', 'less'])) {
-        echo json_encode([
-            "head" => ["code" => 400, "msg" => "Invalid advance type"]
-        ]);
-        exit();
-    }
+    $current_staff_balance = (float)$staff_data['advance_balance'];
 
-    if ($type === 'less' && !in_array($recovery_mode, ['salary','direct'])) {
-    echo json_encode([
-        "head" => ["code"=>400,"msg"=>"Invalid recovery_mode value"]
-    ]);
-    exit();
-}
-
-
-    /* STEP 1: Fetch current balance */
-    $stmt = $conn->prepare("
-        SELECT id, advance_balance
-        FROM staff
-        WHERE delete_at = 0
-        ORDER BY create_at DESC
+    /* STEP 2: Check for existing salary deduction on this date to prevent double entry */
+    $checkStmt = $conn->prepare("
+        SELECT advance_id, amount FROM staff_advance 
+        WHERE staff_id = ? AND entry_date = ? AND recovery_mode = 'salary' 
         LIMIT 1
     ");
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    $checkStmt->bind_param("ss", $staff_id, $entry_date);
+    $checkStmt->execute();
+    $existingRecord = $checkStmt->get_result()->fetch_assoc();
+    $checkStmt->close();
 
-    if (!$row) {
-        echo json_encode([
-            "head" => ["code" => 400, "msg" => "Staff not found"]
-        ]);
-        exit();
-    }
+    if ($existingRecord) {
+        /* UPDATE CASE: Edit existing entry */
+        $old_amount = (float)$existingRecord['amount'];
+        $advance_id = $existingRecord['advance_id'];
 
-    $staff_row_id = $row['id'];
-    $current_balance   = (float) $row['advance_balance'];
+        // Logic: Revert the old deduction and apply the new one
+        // If it was a deduction (less), we add back the old amount and subtract the new one
+        $new_balance = $current_staff_balance + $old_amount - $amount;
 
-    /* STEP 2: Balance calculation */
-    if ($type === 'add') {
-        $new_balance = $current_balance + $amount;
+        $upd = $conn->prepare("UPDATE staff_advance SET amount = ? WHERE advance_id = ?");
+        $upd->bind_param("ds", $amount, $advance_id);
+        $upd->execute();
+        $upd->close();
     } else {
-        if ($amount > $current_balance) {
-            echo json_encode([
-                "head" => ["code" => 400, "msg" => "Recovery exceeds balance"]
-            ]);
-            exit();
+        /* INSERT CASE: New entry */
+        $advance_id = uniqid('ADV');
+
+        // Logic: If 'add', balance goes UP. If 'less', balance goes DOWN.
+        if ($type === 'add') {
+            $new_balance = $current_staff_balance + $amount;
+        } else {
+            $new_balance = $current_staff_balance - $amount;
         }
-        $new_balance = $current_balance - $amount;
+
+        $ins = $conn->prepare("INSERT INTO staff_advance (advance_id, staff_id, staff_name, amount, type, recovery_mode, entry_date, created_at) VALUES (?,?,?,?,?,?,?,?)");
+        $ins->bind_param("sssdssss", $advance_id, $staff_id, $staff_name, $amount, $type, $recovery_mode, $entry_date, $timestamp);
+        $ins->execute();
+        $ins->close();
     }
 
-    /* STEP 3: Ledger insert */
-    $advance_id = uniqid('ADV');
-    $entry_date = (new DateTime($date))->format('Y-m-d');
-
-    $stmt = $conn->prepare("
-        INSERT INTO staff_advance
-        (advance_id, staff_id, staff_name, amount, type, recovery_mode, entry_date, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ");
-    $stmt->bind_param(
-        "sssdssss",
-        $advance_id,
-        $staff_id,
-        $staff_name,
-        $amount,
-        $type,
-        $recovery_mode,
-        $entry_date,
-        $timestamp
-    );
-    $stmt->execute();
-    $stmt->close();
-
-    /* STEP 4: Update balance snapshot */
-    $stmt = $conn->prepare("
-        UPDATE staff
-        SET advance_balance = ?
-        WHERE id = ?
-    ");
-    $stmt->bind_param("di", $new_balance, $staff_row_id);
+    /* STEP 3: Update Staff Master Balance with the corrected math */
+    $stmt = $conn->prepare("UPDATE staff SET advance_balance = ? WHERE staff_id = ?");
+    $stmt->bind_param("ds", $new_balance, $staff_id);
     $stmt->execute();
     $stmt->close();
 
     echo json_encode([
-        "head" => ["code" => 200, "msg" => "Advance transaction completed"],
-        "body" => [
-            "previous_balance" => $current_balance,
-            "current_balance"  => $new_balance,
-            "recovery_mode"    => $recovery_mode
-        ]
-    ], JSON_NUMERIC_CHECK);
+        "head" => ["code" => 200, "msg" => "Advance updated successfully"],
+        "body" => ["new_balance" => $new_balance]
+    ]);
     exit();
 }
 else {
