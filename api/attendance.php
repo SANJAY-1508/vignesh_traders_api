@@ -280,10 +280,11 @@ elseif ($action === 'setAttendanceDeduction') {
     $staff_name = $staff_row['staff_name'];
 
     $new_balance = $current_balance;
+    $current_advance_id = null;
 
     // STEP 2: Check for existing advance record
     $stmt = $conn->prepare("
-        SELECT id, amount
+        SELECT id, amount, advance_id
         FROM staff_advance
         WHERE attendance_id = ? AND staff_id = ? AND delete_at = 0
     ");
@@ -307,6 +308,7 @@ elseif ($action === 'setAttendanceDeduction') {
             $stmt->bind_param("i", $advance_row['id']);
             $stmt->execute();
             $stmt->close();
+            $current_advance_id = null;
         } else {
             // Update amount and adjust balance
             $new_balance = $current_balance - $diff;
@@ -314,6 +316,7 @@ elseif ($action === 'setAttendanceDeduction') {
             $stmt->bind_param("di", $new_amount, $advance_row['id']);
             $stmt->execute();
             $stmt->close();
+            $current_advance_id = $advance_row['advance_id'];
         }
     } else {
         // No existing record
@@ -338,8 +341,11 @@ elseif ($action === 'setAttendanceDeduction') {
             $stmt->execute();
             $stmt->close();
             $new_balance = $current_balance - $new_amount;
+            $current_advance_id = $advance_id;
+        } else {
+
+            $current_advance_id = null;
         }
-        // If new_amount == 0, no op
     }
 
     // STEP 3: Update staff balance if changed
@@ -357,7 +363,8 @@ elseif ($action === 'setAttendanceDeduction') {
     echo json_encode([
         "head" => ["code" => 200, "msg" => "Attendance deduction set successfully"],
         "body" => [
-            "new_balance" => $new_balance
+            "new_balance" => $new_balance,
+            "advance_id" => $current_advance_id
         ]
     ], JSON_NUMERIC_CHECK);
     exit();
