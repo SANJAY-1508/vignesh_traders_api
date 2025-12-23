@@ -89,7 +89,6 @@ elseif ($action === 'createAttendance') {
     $stmt->close();
 }
 
-
 // Update Attendance
 elseif ($action === 'updateAttendance') {
     $attendance_id = $obj->attendance_id ?? null;
@@ -146,8 +145,6 @@ elseif ($action === 'deleteAttendance') {
     }
 }
 
-
-
 // Invalid Action
 elseif ($action === 'addAdvance') {
 
@@ -180,16 +177,16 @@ elseif ($action === 'addAdvance') {
     }
 
 
-    /* STEP 1: Fetch current balance */
+    /* STEP 1: Fetch current balance for specific staff */
     $stmt = $conn->prepare("
         SELECT id, advance_balance
         FROM staff
-        WHERE delete_at = 0
-        ORDER BY create_at DESC
-        LIMIT 1
+        WHERE staff_id = ? AND delete_at = 0
     ");
+    $stmt->bind_param("s", $staff_id);
     $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
     $stmt->close();
 
     if (!$row) {

@@ -78,7 +78,7 @@ elseif ($action === 'createStaff') {
             $insertId = $conn->insert_id;
 
             // Generate a unique staff ID
-            $staff_id = uniqueID("staff", $insertId);  // Assuming you have a uniqueID function
+            $staff_id = uniqid('STF' . $insertId);  // Fixed: Use uniqid directly, assuming no custom uniqueID function
 
             // Update the staff record with the generated unique ID
             $stmtUpdate = $conn->prepare("UPDATE staff SET staff_id = ? WHERE id = ?");
@@ -86,27 +86,30 @@ elseif ($action === 'createStaff') {
 
             if ($stmtUpdate->execute()) {
                 $response = [
-                    "status" => 200,
-                    "message" => "Staff Added Successfully",
-                    "staff_id" => $staff_id // Return the unique staff ID
+                    "head" => ["code" => 200, "msg" => "Staff Added Successfully"],
+                    "body" => ["staff_id" => $staff_id] // Return the unique staff ID
                 ];
             } else {
                 $response = [
-                    "status" => 400,
-                    "message" => "Failed to update Staff ID"
+                    "head" => ["code" => 400, "msg" => "Failed to update Staff ID"]
                 ];
             }
 
             $stmtUpdate->close();
         } else {
             $response = [
-                "status" => 400,
-                "message" => "Failed to Add Staff. Error: " . $stmt->error
+                "head" => ["code" => 400, "msg" => "Failed to Add Staff. Error: " . $stmt->error]
             ];
         }
 
         $stmt->close();
+    } else {
+        $response = [
+            "head" => ["code" => 400, "msg" => "Missing required fields (staff_name)"]
+        ];
     }
+    echo json_encode($response, JSON_NUMERIC_CHECK);
+    exit();
 }
 
 // Update Staff
@@ -125,25 +128,23 @@ elseif ($action === 'updateStaff') {
 
         if ($stmt->execute()) {
             $response = [
-                "status" => 200,
-                "message" => "Staff Updated Successfully"
+                "head" => ["code" => 200, "msg" => "Staff Updated Successfully"]
             ];
         } else {
             $response = [
-                "status" => 400,
-                "message" => "Failed to Update Staff. Error: " . $stmt->error
+                "head" => ["code" => 400, "msg" => "Failed to Update Staff. Error: " . $stmt->error]
             ];
         }
         $stmt->close();
     } else {
         $response = [
-            "status" => 400,
-            "message" => "Missing or Invalid Parameters"
+            "head" => ["code" => 400, "msg" => "Missing or Invalid Parameters"]
         ];
     }
+    echo json_encode($response, JSON_NUMERIC_CHECK);
+    exit();
 }
 
-// Delete Staff
 // Delete Staff
 elseif ($action === 'deleteStaff') {
     $delete_staff_id = $obj->delete_staff_id ?? null;
@@ -167,9 +168,9 @@ elseif ($action === 'deleteStaff') {
             "head" => ["code" => 400, "msg" => "Missing or Invalid Parameters"]
         ];
     }
+    echo json_encode($response, JSON_NUMERIC_CHECK);
+    exit();
 }
-
-
 
 // Invalid Action
 else {
