@@ -69,6 +69,21 @@ elseif ($action === 'createAttendance') {
     $formattedDate = $dateObj->format('Y-m-d');
     $data_json = json_encode($data, true);
 
+    // Check if exists
+    $stmtCheck = $conn->prepare("SELECT COUNT(*) as count FROM attendance WHERE entry_date = ? AND delete_at = 0");
+    $stmtCheck->bind_param("s", $formattedDate);
+    $stmtCheck->execute();
+    $resultCheck = $stmtCheck->get_result();
+    $rowCheck = $resultCheck->fetch_assoc();
+    $stmtCheck->close();
+
+    if ($rowCheck['count'] > 0) {
+        echo json_encode([
+            "head" => ["code" => 400, "msg" => "Attendance already exists for this date"]
+        ], JSON_NUMERIC_CHECK);
+        exit();
+    }
+
     $stmt = $conn->prepare("INSERT INTO attendance (attendance_id, entry_date, data, create_at) VALUES (?, ?, ?, ?)");
     $attendance_id = uniqid('ATT'); // Generate unique ID
 
