@@ -32,7 +32,7 @@ $action = $obj->action; // Extract action from the request
 
 // List Weekly Salary
 if ($action === 'listWeeklySalary') {
-    $query = "SELECT * FROM weekly_salary WHERE delete_at = 0 ORDER BY create_at ASC";
+    $query = "SELECT * FROM weekly_salary WHERE delete_at = 0 ORDER BY create_at DESC";
     $result = $conn->query($query);
 
     if ($result && $result->num_rows > 0) {
