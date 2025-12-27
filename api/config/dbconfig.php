@@ -1,7 +1,7 @@
 <?php
 $name = "localhost";
-$username = "zen_root_vignesh_traders";
-$password = "tzpKEFPkWTLpSRyk";
+$username = "root";
+$password = "";
 $database = "vignesh_traders";
 
 $conn = new mysqli($name, $username, $password, $database);
@@ -31,8 +31,7 @@ function uniqueID($prefix_name, $auto_increment_id)
     $timestamp = date('Y-m-d H:i:s');
     $encryptId = $prefix_name . "_" . $timestamp . "_" . $auto_increment_id;
 
-    $hashid =md5($encryptId);
+    $hashid = md5($encryptId);
 
     return $hashid;
-
 }
