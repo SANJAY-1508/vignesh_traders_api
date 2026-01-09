@@ -2,7 +2,8 @@
 
 include 'config/dbconfig.php';
 header('Content-Type: application/json; charset=utf-8');
-header("Access-Control-Allow-Origin: http://localhost:3000"); // Allow only your React app
+header("Access-Control-Allow-Origin: http://localhost:3000,http://192.168.1.71:3000"); // Allow only your React app
+
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE"); // Allow HTTP methods
 header("Access-Control-Allow-Headers: Content-Type, Authorization"); // Allow headers
 header("Access-Control-Allow-Credentials: true"); // If needed for cookies/auth

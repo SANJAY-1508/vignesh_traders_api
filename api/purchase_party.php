@@ -1,16 +1,24 @@
 <?php
 include 'config/dbconfig.php';
-header('Content-Type: application/json; charset=utf-8');
-header("Access-Control-Allow-Origin: http://localhost:3000"); // Allow only your React app
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE"); // Allow HTTP methods
-header("Access-Control-Allow-Headers: Content-Type, Authorization"); // Allow headers
-header("Access-Control-Allow-Credentials: true"); // If needed for cookies/auth
+$allowed_origins = [
+    "http://localhost:3000",
+    "http://192.168.1.6:3000"
+];
 
-// Handle preflight OPTIONS request
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    http_response_code(200);
-    exit();
+if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
+    header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
 }
+
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Credentials: true");
+
+// Optional: Handle preflight requests
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
 
 $json = file_get_contents('php://input');
 $obj = json_decode($json);
@@ -33,7 +41,6 @@ if (isset($obj->search_text)) {
     $search_text = $conn->real_escape_string($obj->search_text);
     $company_id  = $conn->real_escape_string($obj->company_id);
 
-    // Date Filters
     $from_date = isset($obj->from_date) ? $obj->from_date : null;
     $to_date   = isset($obj->to_date) ? $obj->to_date : null;
 
@@ -55,12 +62,13 @@ if (isset($obj->search_text)) {
             $party_id = $row['party_id'];
             $transactions = [];
 
-            // ----------------------------------------
-            // PURCHASE DATA WITH DATE FILTER
-            // ----------------------------------------
+            // ================================
+            // PURCHASE DATA
+            // ================================
             $purchase_sql = "SELECT purchase_id, bill_no, 
-                             DATE_FORMAT(bill_date, '%Y-%m-%d') as bill_date, 
-                             total, paid, balance_amount  AS balance,remark,payment_method
+                             DATE_FORMAT(bill_date, '%Y-%m-%d') as bill_date,
+                             created_date,
+                             total, paid, balance_amount AS balance, remark, payment_method
                              FROM purchase 
                              WHERE delete_at = '0' 
                              AND company_id = '$company_id'
@@ -74,23 +82,25 @@ if (isset($obj->search_text)) {
 
             while ($p = $purchase_result->fetch_assoc()) {
                 $transactions[] = [
-                    "id"         => $p["purchase_id"],
-                    "type"       => "Purchase",
-                    "date"       => $p["bill_date"],
-                    "receipt_no" => $p["bill_no"],
-                    "amount"     => $p["total"],
-                    "paid"       => $p["paid"],
-                    "balance"    => $p["balance"],
-                    "details"    => $p["remark"],
-                    "payment_method" => $p["payment_method"]
+                    "id"            => $p["purchase_id"],
+                    "type"          => "Purchase",
+                    "date"          => $p["bill_date"],
+                    "created_at"    => $p["created_date"],
+                    "receipt_no"    => $p["bill_no"],
+                    "amount"        => $p["total"],
+                    "paid"          => $p["paid"],
+                    "balance"       => $p["balance"],
+                    "details"       => $p["remark"],
+                    "payment_method"=> $p["payment_method"]
                 ];
             }
 
-            // ----------------------------------------
-            // PAYOUT DATA WITH DATE FILTER
-            // ----------------------------------------
-            $payout_sql = "SELECT payout_id, voucher_no,details,
+            // ================================
+            // PAYOUT DATA
+            // ================================
+            $payout_sql = "SELECT payout_id, voucher_no, details,
                            DATE_FORMAT(voucher_date, '%Y-%m-%d') as voucher_date,
+                           created_date,
                            paid,payment_method_name
                            FROM payout
                            WHERE delete_at = '0'
@@ -105,21 +115,40 @@ if (isset($obj->search_text)) {
 
             while ($pay = $payout_result->fetch_assoc()) {
                 $transactions[] = [
-                    "id"         => $pay["payout_id"],
-                    "type"       => "Payout",
-                    "date"       => $pay["voucher_date"],
-                    "receipt_no" => $pay["voucher_no"],
-                    "amount"     => $pay["paid"],
-                    "paid"       => $pay["paid"],
-                    "details"    => $pay["details"],
-                    "payment_method" => $pay["payment_method_name"],
-                    "balance"    => "0"
+                    "id"            => $pay["payout_id"],
+                    "type"          => "Payout",
+                    "date"          => $pay["voucher_date"],
+                    "created_at"    => $pay["created_date"],
+                    "receipt_no"    => $pay["voucher_no"],
+                    "amount"        => $pay["paid"],
+                    "paid"          => $pay["paid"],
+                    "details"       => $pay["details"],
+                    "payment_method"=> $pay["payment_method_name"],
+                    "balance"       => "0"
                 ];
             }
 
-            // Sort by date DESC
-            usort($transactions, function ($a, $b) {
-                return strtotime($b["date"]) - strtotime($a["date"]);
+            // ==========================================
+            // FINAL SORTING – Absolute Correct Chronology
+            // ==========================================
+            usort($transactions, function($a, $b){
+
+                // Primary: Date ASC
+                $d1 = strtotime($a["date"]);
+                $d2 = strtotime($b["date"]);
+
+                if ($d1 === $d2) {
+
+                    // If same date → use timestamp
+                    if (!empty($a["created_at"]) && !empty($b["created_at"])) {
+                        return strtotime($a["created_at"]) - strtotime($b["created_at"]);
+                    }
+
+                    // Fallback: sort by ID if created_at missing
+                    return $a["id"] - $b["id"];
+                }
+
+                return $d1 - $d2;
             });
 
             $row["transactions"] = $transactions;
@@ -129,11 +158,13 @@ if (isset($obj->search_text)) {
         $output["status"] = 200;
         $output["msg"]    = "Success";
         $output["data"]   = $data;
+
     } else {
         $output["status"] = 400;
         $output["msg"]    = "No Records Found";
     }
-} else if (isset($obj->company_id) && isset($obj->edit_party_id)) {
+}
+ else if (isset($obj->company_id) && isset($obj->edit_party_id)) {
     $party_id = $obj->edit_party_id;
     $party_name = $obj->party_name;
     $mobile_number = $obj->mobile_number;

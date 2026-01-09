@@ -1,14 +1,25 @@
 <?php
 include 'config/dbconfig.php';
-header('Content-Type: application/json; charset=utf-8');
-header("Access-Control-Allow-Origin: http://localhost:3000");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+$allowed_origins = [
+    "http://localhost:3000",
+    "http://192.168.1.6:3000"
+];
+
+if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
+    header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
+}
+
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Access-Control-Allow-Credentials: true");
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    http_response_code(200);
-    exit();
+
+// Optional: Handle preflight requests
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
 }
+
+
 $json = file_get_contents('php://input');
 $obj = json_decode($json, true);
 $output = array();
@@ -89,7 +100,10 @@ else if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($obj['party_id'])) {
     $gst_amount = isset($obj['gst_amount']) && $obj['gst_amount'] !== '' ? $obj['gst_amount'] : 0;
     $subtotal = $obj['subtotal'];
     $round_off = isset($obj['round_off']) ? intval($obj['round_off']) : 0;
-    $round_off_amount = isset($obj['round_off_amount']) ? floatval($obj['round_off_amount']) : 0;
+   $round_off_amount = isset($obj['round_off_amount']) 
+    ? number_format((float)$obj['round_off_amount'], 2, '.', '') 
+    : '0.00';
+
     try {
         // Parameter validation
         if (!$party_id || !$bill_date || !$product || !isset($total)) {
@@ -202,7 +216,10 @@ else if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
     $gst_amount = isset($obj['gst_amount']) && $obj['gst_amount'] !== '' ? $obj['gst_amount'] : 0;
     $remark = isset($obj['remark']) && $obj['remark'] !== '' ? $obj['remark'] : '';
     $round_off = isset($obj['round_off']) ? intval($obj['round_off']) : 0;
-    $round_off_amount = isset($obj['round_off_amount']) ? floatval($obj['round_off_amount']) : 0;
+   $round_off_amount = isset($obj['round_off_amount']) 
+    ? number_format((float)$obj['round_off_amount'], 2, '.', '') 
+    : '0.00';
+
     // Validate required fields
     if (!$invoice_id || !$party_id) {
         $output = ['status' => 400, 'msg' => 'Parameter Mismatch'];

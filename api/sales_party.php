@@ -1,16 +1,25 @@
 <?php
 include 'config/dbconfig.php'; // Database connection
-header('Content-Type: application/json; charset=utf-8');
-header("Access-Control-Allow-Origin: http://localhost:3000"); // Allow only your React app
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE"); // Allow HTTP methods
-header("Access-Control-Allow-Headers: Content-Type, Authorization"); // Allow headers
-header("Access-Control-Allow-Credentials: true"); // If needed for cookies/auth
+$allowed_origins = [
+    "http://localhost:3000",
+    "http://192.168.1.6:3000"
+];
 
-// Handle preflight OPTIONS request
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    http_response_code(200);
-    exit();
+if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
+    header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
 }
+
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Credentials: true");
+
+// Optional: Handle preflight requests
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
+
 
 $json = file_get_contents('php://input');
 $obj = json_decode($json);
@@ -135,9 +144,19 @@ if (isset($obj->search_text)) {
             }
 
             // SORT BY DATE DESC
-            usort($transactions, function ($a, $b) {
-                return strtotime($b["date"]) - strtotime($a["date"]);
-            });
+           // SORT BY DATE ASCENDING
+usort($transactions, function ($a, $b) {
+    $timeA = strtotime($a["date"]);
+    $timeB = strtotime($b["date"]);
+
+    if ($timeA === $timeB) {
+        // fallback ordering if dates are identical
+        return strtotime($a["create_date"] ?? $a["date"]) - strtotime($b["create_date"] ?? $b["date"]);
+    }
+
+    return $timeA - $timeB;
+});
+
 
             $row["transactions"] = $transactions;
             
@@ -154,48 +173,56 @@ if (isset($obj->search_text)) {
                 ];
             
                 // ----- INVOICE → DEBIT -----
-                if ($txn["type"] === "Invoice") {
-            
-                    // GST tag identification
-                    $particular = $txn["receipt_no"];
-                  if (isset($txn["gst"]) && is_numeric($txn["gst"]) && floatval($txn["gst"]) > 0) {
-    $particular .= " + GST";
-}
-$productData = $txn["product"];  // ensure "remark/details" holds JSON string
+               if ($txn["type"] === "Invoice") {
 
-if (!empty($productData)) {
+    $particular = "";
+    $productData = $txn["product"];
 
-    $items = json_decode($productData, true);
+    if (!empty($productData)) {
+        $items = json_decode($productData, true);
 
-    if (is_array($items)) {
+        if (is_array($items)) {
+            $productSummaryArr = [];
 
-        $productSummaryArr = [];
+            foreach ($items as $p) {
 
-        foreach ($items as $p) {
+                $productName = $p["product_name"] ?? "";
+                $qty         = $p["qty"] ?? "";
+                $unitName    = strtoupper($p["unit_name"] ?? "");
+                $unitCount   = $p["unit_count"] ?? "";
+                $priceUnit   = $p["price_unit"] ?? "";
 
-            $productName   = $p["product_name"];
-            $qty           = $p["qty"];
-            $unitName      = $p["unit_name"];
-            $unitCount     = $p["unit_count"];
-            $priceUnit     = $p["price_unit"];
+                // plural logic example: BAG -> BAGS (optional tweak if needed)
+                $unitDisplay = $unitCount . " " . $unitName;
 
-            // Format → 20 BAGS
-            $unitDisplay = $unitCount . " " . strtoupper($unitName);
+                // calc string → 1040 × 40
+                $calcString = $qty . " × " . $priceUnit;
 
-            // Format calculation string → 40 × 1000
-            $calcString = $qty . " × " . $priceUnit;
+                // final push → 38 MM – 26 BAGS - 1040 × 40
+                $productSummaryArr[] = $productName . " – " . $unitDisplay . " - " . $calcString;
+            }
 
-            // Final descriptor → 38 MM SPLINTS – 20 BAGS × (40 × 1000)
-            $productSummaryArr[] = $productName . " – " . $unitDisplay . " × (" . $calcString . ")";
+            $productSummary = implode(" | ", $productSummaryArr);
+
+            // Build Bill format
+            $bill = "(Bill No: " . $txn["receipt_no"];
+
+            if (isset($txn["gst"]) && is_numeric($txn["gst"]) && floatval($txn["gst"]) > 0) {
+                $bill .= " + GST";
+            }
+
+            $bill .= ")";
+
+            // final combined
+            $particular = $productSummary . " - " . $bill;
         }
-
-        // Merge all product descriptors
-        $productSummary = implode(" | ", $productSummaryArr);
-
-        // Append to ledger Particular
-        $particular .= " | " . $productSummary ."  ".$txn["details"];
     }
-}
+
+//     $entry["Particulars"] = $particular;
+//     $entry["Debit"] = $txn["amount"];
+//     $runningBalance += floatval($txn["amount"]);
+// }
+
 
             
                     $entry["Particulars"] = $particular;

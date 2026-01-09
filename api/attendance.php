@@ -58,6 +58,76 @@ if ($action === 'listAttendance') {
     }
     echo json_encode($response, JSON_NUMERIC_CHECK);
     exit();
+}else if ($action === 'listAttendanceByRange') {
+    // Validate and sanitize input dates
+    $start_date = isset($obj->start_date) ? trim($obj->start_date) : '';
+    $end_date = isset($obj->end_date) ? trim($obj->end_date) : '';
+
+    if (empty($start_date) || empty($end_date)) {
+        $response = [
+            "head" => ["code" => 400, "msg" => "Start date and end date are required"],
+            "body" => []
+        ];
+        echo json_encode($response);
+        exit();
+    }
+
+    // Optional: Validate date format (YYYY-MM-DD)
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_date)) {
+        $response = [
+            "head" => ["code" => 400, "msg" => "Invalid date format. Use YYYY-MM-DD"],
+            "body" => []
+        ];
+        echo json_encode($response);
+        exit();
+    }
+
+    // Prevent SQL injection using prepared statements
+    $query = "SELECT attendance_id, entry_date, data, create_at 
+              FROM attendance 
+              WHERE delete_at = 0 
+                AND entry_date BETWEEN ? AND ? 
+              ORDER BY entry_date DESC";
+
+    $stmt = $conn->prepare($query);
+    if (!$stmt) {
+        $response = [
+            "head" => ["code" => 500, "msg" => "Database prepare error"],
+            "body" => []
+        ];
+        echo json_encode($response);
+        exit();
+    }
+
+    $stmt->bind_param("ss", $start_date, $end_date);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $attendance = [];
+    if ($result && $result->num_rows > 0) {
+        while ($row = $result->fetch_assoc()) {
+            $attendance[] = [
+                "attendance_id" => $row["attendance_id"],
+                "entry_date"     => $row["entry_date"],
+                "data"           => json_decode($row["data"], true), // Ensure valid JSON
+                "create_at"      => $row["create_at"]
+            ];
+        }
+
+        $response = [
+            "head" => ["code" => 200, "msg" => "Success"],
+            "body" => ["attendance" => $attendance]
+        ];
+    } else {
+        $response = [
+            "head" => ["code" => 200, "msg" => "No attendance found in the selected range"],
+            "body" => ["attendance" => []]
+        ];
+    }
+
+    $stmt->close();
+    echo json_encode($response, JSON_NUMERIC_CHECK);
+    exit();
 }
 
 // Create Attendance
@@ -140,77 +210,77 @@ elseif ($action === 'deleteAttendance') {
 
     if ($attendance_id) {
         // STEP 1: Fetch attendance data to process refunds
-        $stmtFetch = $conn->prepare("SELECT data FROM attendance WHERE attendance_id = ? AND delete_at = 0");
-        $stmtFetch->bind_param("s", $attendance_id);
-        $stmtFetch->execute();
-        $resultFetch = $stmtFetch->get_result();
-        $attendance_row = $resultFetch->fetch_assoc();
-        $stmtFetch->close();
+        // $stmtFetch = $conn->prepare("SELECT data FROM attendance WHERE attendance_id = ? AND delete_at = 0");
+        // $stmtFetch->bind_param("s", $attendance_id);
+        // $stmtFetch->execute();
+        // $resultFetch = $stmtFetch->get_result();
+        // $attendance_row = $resultFetch->fetch_assoc();
+        // $stmtFetch->close();
 
-        if (!$attendance_row) {
-            echo json_encode([
-                "head" => ["code" => 404, "msg" => "Attendance not found"]
-            ], JSON_NUMERIC_CHECK);
-            exit();
-        }
+        // if (!$attendance_row) {
+        //     echo json_encode([
+        //         "head" => ["code" => 404, "msg" => "Attendance not found"]
+        //     ], JSON_NUMERIC_CHECK);
+        //     exit();
+        // }
 
-        $attendance_data = json_decode($attendance_row['data'], true);
-        $refund_errors = false;
+        // $attendance_data = json_decode($attendance_row['data'], true);
+        // $refund_errors = false;
 
-        // STEP 2: For each staff with deduction > 0, refund balance and soft delete advance record
-        if (is_array($attendance_data)) {
-            foreach ($attendance_data as $item) {
-                $staff_id = $item['staff_id'] ?? null;
-                $deduction = (float) ($item['deduction'] ?? 0);
+        // // STEP 2: For each staff with deduction > 0, refund balance and soft delete advance record
+        // if (is_array($attendance_data)) {
+        //     foreach ($attendance_data as $item) {
+        //         $staff_id = $item['staff_id'] ?? null;
+        //         $deduction = (float) ($item['deduction'] ?? 0);
 
-                if ($staff_id && $deduction > 0) {
-                    // Fetch staff internal ID and current balance (though we add directly)
-                    $stmtStaff = $conn->prepare("
-                        SELECT id
-                        FROM staff
-                        WHERE staff_id = ? AND delete_at = 0
-                    ");
-                    $stmtStaff->bind_param("s", $staff_id);
-                    $stmtStaff->execute();
-                    $staffResult = $stmtStaff->get_result();
-                    $staff_row = $staffResult->fetch_assoc();
-                    $stmtStaff->close();
+        //         if ($staff_id && $deduction > 0) {
+        //             // Fetch staff internal ID and current balance (though we add directly)
+        //             $stmtStaff = $conn->prepare("
+        //                 SELECT id
+        //                 FROM staff
+        //                 WHERE staff_id = ? AND delete_at = 0
+        //             ");
+        //             $stmtStaff->bind_param("s", $staff_id);
+        //             $stmtStaff->execute();
+        //             $staffResult = $stmtStaff->get_result();
+        //             $staff_row = $staffResult->fetch_assoc();
+        //             $stmtStaff->close();
 
-                    if ($staff_row) {
-                        $staff_row_id = $staff_row['id'];
+        //             if ($staff_row) {
+        //                 $staff_row_id = $staff_row['id'];
 
-                        // Refund: Add back deduction to advance_balance
-                        $stmtRefund = $conn->prepare("
-                            UPDATE staff
-                            SET advance_balance = advance_balance + ?
-                            WHERE id = ?
-                        ");
-                        $stmtRefund->bind_param("di", $deduction, $staff_row_id);
-                        if (!$stmtRefund->execute()) {
-                            $refund_errors = true;
-                            error_log("Refund failed for staff_id: $staff_id - " . $stmtRefund->error);
-                        }
-                        $stmtRefund->close();
+        //                 // Refund: Add back deduction to advance_balance
+        //                 $stmtRefund = $conn->prepare("
+        //                     UPDATE staff
+        //                     SET advance_balance = advance_balance + ?
+        //                     WHERE id = ?
+        //                 ");
+        //                 $stmtRefund->bind_param("di", $deduction, $staff_row_id);
+        //                 if (!$stmtRefund->execute()) {
+        //                     $refund_errors = true;
+        //                     error_log("Refund failed for staff_id: $staff_id - " . $stmtRefund->error);
+        //                 }
+        //                 $stmtRefund->close();
 
-                        // Soft delete related staff_advance record
-                        $stmtDeleteAdvance = $conn->prepare("
-                            UPDATE staff_advance
-                            SET delete_at = 1
-                            WHERE attendance_id = ? AND staff_id = ? AND delete_at = 0
-                        ");
-                        $stmtDeleteAdvance->bind_param("ss", $attendance_id, $staff_id);
-                        if (!$stmtDeleteAdvance->execute()) {
-                            $refund_errors = true;
-                            error_log("Advance delete failed for staff_id: $staff_id - " . $stmtDeleteAdvance->error);
-                        }
-                        $stmtDeleteAdvance->close();
-                    } else {
-                        $refund_errors = true;
-                        error_log("Staff not found for refund: $staff_id");
-                    }
-                }
-            }
-        }
+        //                 // Soft delete related staff_advance record
+        //                 $stmtDeleteAdvance = $conn->prepare("
+        //                     UPDATE staff_advance
+        //                     SET delete_at = 1
+        //                     WHERE attendance_id = ? AND staff_id = ? AND delete_at = 0
+        //                 ");
+        //                 $stmtDeleteAdvance->bind_param("ss", $attendance_id, $staff_id);
+        //                 if (!$stmtDeleteAdvance->execute()) {
+        //                     $refund_errors = true;
+        //                     error_log("Advance delete failed for staff_id: $staff_id - " . $stmtDeleteAdvance->error);
+        //                 }
+        //                 $stmtDeleteAdvance->close();
+        //             } else {
+        //                 $refund_errors = true;
+        //                 error_log("Staff not found for refund: $staff_id");
+        //             }
+        //         }
+        //     }
+        // }
 
         // STEP 3: Soft delete attendance
         $stmtDelete = $conn->prepare("UPDATE attendance SET delete_at = 1 WHERE attendance_id = ?");
