@@ -2,11 +2,7 @@
 include 'config/dbconfig.php'; // Database connection
 $allowed_origins = [
     "http://localhost:3000",
-<<<<<<< HEAD
     "http://192.168.1.6:3000"
-=======
-    "http://192.168.1.71:3000"
->>>>>>> 3934453c992752b5d20e5feb120645f62a832c39
 ];
 
 if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {

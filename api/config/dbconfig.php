@@ -31,7 +31,8 @@ function uniqueID($prefix_name, $auto_increment_id)
     $timestamp = date('Y-m-d H:i:s');
     $encryptId = $prefix_name . "_" . $timestamp . "_" . $auto_increment_id;
 
-    $hashid = md5($encryptId);
+    $hashid =md5($encryptId);
 
     return $hashid;
+
 }

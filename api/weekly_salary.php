@@ -16,11 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 $json = file_get_contents('php://input');
 $obj = json_decode($json);
 $output = array();
-<<<<<<< HEAD
 error_log("Incoming Weekly Salary OBJECT: " . print_r($obj, true));
-=======
-
->>>>>>> 3934453c992752b5d20e5feb120645f62a832c39
 date_default_timezone_set('Asia/Calcutta');
 $timestamp = date('Y-m-d H:i:s');
 
@@ -33,11 +29,6 @@ if (!isset($obj->action)) {
 }
 
 $action = $obj->action; // Extract action from the request
-<<<<<<< HEAD
-=======
-
-// List Weekly Salary with Date Range Filter
->>>>>>> 3934453c992752b5d20e5feb120645f62a832c39
 if ($action === 'listWeeklySalaryByRange') {
     $from_date = isset($obj->from_date) ? trim($obj->from_date) : '';
     $to_date = isset($obj->to_date) ? trim($obj->to_date) : '';
@@ -135,16 +126,9 @@ if ($action === 'listWeeklySalaryByRange') {
     
     echo json_encode($response, JSON_NUMERIC_CHECK);
     exit();
-<<<<<<< HEAD
 }else
 // List Weekly Salary
 if ($action === 'listWeeklySalary') {
-=======
-}
-
-// List Weekly Salary (Original - kept for backward compatibility)
-elseif ($action === 'listWeeklySalary') {
->>>>>>> 3934453c992752b5d20e5feb120645f62a832c39
     $query = "SELECT * FROM weekly_salary WHERE delete_at = 0 ORDER BY create_at DESC";
     $result = $conn->query($query);
 
@@ -172,7 +156,6 @@ elseif ($action === 'listWeeklySalary') {
     }
     echo json_encode($response, JSON_NUMERIC_CHECK);
     exit();
-<<<<<<< HEAD
 } elseif ($action === 'listWeeklySalaryByRange') {
     // Validate and sanitize input dates
     $start_date = isset($obj->start_date) ? trim($obj->start_date) : '';
@@ -244,8 +227,6 @@ elseif ($action === 'listWeeklySalary') {
     $stmt->close();
     echo json_encode($response, JSON_NUMERIC_CHECK);
     exit();
-=======
->>>>>>> 3934453c992752b5d20e5feb120645f62a832c39
 }
 
 // Create Weekly Salary
@@ -476,17 +457,11 @@ elseif ($action === 'deleteWeeklySalary') {
 
 // Set Weekly Salary Recovery (for create/edit adjustments)
 elseif ($action === 'setWeeklySalaryRecovery') {
-<<<<<<< HEAD
     error_log("sivavanthuruchuda");
     $weekly_salary_id = $obj->weekly_salary_id ?? null;
     $staff_id = $obj->staff_id ?? null;
    $new_amount = isset($obj->amount) ? floatval($obj->amount) : 0;
 
-=======
-    $weekly_salary_id = $obj->weekly_salary_id ?? null;
-    $staff_id = $obj->staff_id ?? null;
-    $new_amount = (float) ($obj->amount ?? 0);
->>>>>>> 3934453c992752b5d20e5feb120645f62a832c39
     $date = $obj->date ?? date('Y-m-d');
 
     if (!$weekly_salary_id || !$staff_id) {
@@ -553,11 +528,7 @@ elseif ($action === 'setWeeklySalaryRecovery') {
         $old_amount = (float) $advance_row['amount'];
         $diff = $new_amount - $old_amount;
 
-<<<<<<< HEAD
        if ($new_amount <= 0){
-=======
-        if ($new_amount === 0) {
->>>>>>> 3934453c992752b5d20e5feb120645f62a832c39
             // Refund old amount and soft delete
             $new_balance = $current_balance + $old_amount;
             $stmt = $conn->prepare("UPDATE staff_advance SET delete_at = 1 WHERE id = ?");
@@ -677,8 +648,4 @@ elseif ($action === 'setWeeklySalaryRecovery') {
 $conn->close();
 
 // Return JSON Response
-<<<<<<< HEAD
 echo json_encode($response, JSON_NUMERIC_CHECK);
-=======
-echo json_encode($response, JSON_NUMERIC_CHECK);
->>>>>>> 3934453c992752b5d20e5feb120645f62a832c39
