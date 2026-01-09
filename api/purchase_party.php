@@ -1,5 +1,6 @@
 <?php
 include 'config/dbconfig.php';
+
 $allowed_origins = [
     "http://localhost:3000",
     "http://192.168.1.6:3000"
@@ -13,12 +14,11 @@ header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Access-Control-Allow-Credentials: true");
 
-// Optional: Handle preflight requests
+// Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
     exit;
 }
-
 
 $json = file_get_contents('php://input');
 $obj = json_decode($json);
@@ -35,7 +35,7 @@ if ($conn->connect_error) {
     exit();
 }
 
-// List purchase parties with search filter
+// 1. List purchase parties with search + date filter + balance sheet
 if (isset($obj->search_text)) {
 
     $search_text = $conn->real_escape_string($obj->search_text);
@@ -101,7 +101,7 @@ if (isset($obj->search_text)) {
             $payout_sql = "SELECT payout_id, voucher_no, details,
                            DATE_FORMAT(voucher_date, '%Y-%m-%d') as voucher_date,
                            created_date,
-                           paid,payment_method_name
+                           paid, payment_method_name
                            FROM payout
                            WHERE delete_at = '0'
                            AND company_id = '$company_id'
@@ -129,42 +129,80 @@ if (isset($obj->search_text)) {
             }
 
             // ==========================================
-            // FINAL SORTING – Absolute Correct Chronology
+            // FINAL SORTING – Chronological order
             // ==========================================
-            usort($transactions, function($a, $b){
-
-                // Primary: Date ASC
+            usort($transactions, function($a, $b) {
                 $d1 = strtotime($a["date"]);
                 $d2 = strtotime($b["date"]);
 
                 if ($d1 === $d2) {
-
-                    // If same date → use timestamp
                     if (!empty($a["created_at"]) && !empty($b["created_at"])) {
                         return strtotime($a["created_at"]) - strtotime($b["created_at"]);
                     }
-
-                    // Fallback: sort by ID if created_at missing
                     return $a["id"] - $b["id"];
                 }
-
                 return $d1 - $d2;
             });
 
+            // =============================================
+            // BUILD PARTY-WISE BALANCE SHEET (Ledger Style)
+            // =============================================
+            $balanceSheet = [];
+            $runningBalance = floatval($row['opening_balance'] ?? 0);
+
+            foreach ($transactions as $txn) {
+
+                $entry = [
+                    "Date"        => $txn["date"],
+                    "Particulars" => "",
+                    "Credit"      => "0",
+                    "Debit"       => "0",
+                    "Balance"     => "0"
+                ];
+
+                // PURCHASE → DEBIT (you owe supplier more)
+                if ($txn["type"] === "Purchase") {
+                    $particular = "Bill No: " . $txn["receipt_no"];
+                    if (!empty($txn["details"])) {
+                        $particular .= " - " . $txn["details"];
+                    }
+                    $entry["Particulars"] = $particular;
+                    $entry["Debit"] = $txn["amount"];
+                    $runningBalance += floatval($txn["amount"]);
+                }
+
+                // PAYOUT → CREDIT (you paid supplier → owe less)
+                if ($txn["type"] === "Payout") {
+                    $particular = $txn["receipt_no"] . " " . $txn["details"];
+                    if (!empty($txn["payment_method"])) {
+                        $particular .= " (" . trim($txn["payment_method"]) . ")";
+                    }
+                    $entry["Particulars"] = trim($particular);
+                    $entry["Credit"] = $txn["amount"];
+                    $runningBalance -= floatval($txn["amount"]);
+                }
+
+                $entry["Balance"] = number_format($runningBalance, 2, '.', '');
+                $balanceSheet[] = $entry;
+            }
+
             $row["transactions"] = $transactions;
+            $row["party_wise_balance_sheet_report"] = $balanceSheet;
+
             $data[] = $row;
         }
 
         $output["status"] = 200;
         $output["msg"]    = "Success";
         $output["data"]   = $data;
-
     } else {
         $output["status"] = 400;
         $output["msg"]    = "No Records Found";
     }
 }
- else if (isset($obj->company_id) && isset($obj->edit_party_id)) {
+
+// 2. Update existing purchase party
+else if (isset($obj->company_id) && isset($obj->edit_party_id)) {
     $party_id = $obj->edit_party_id;
     $party_name = $obj->party_name;
     $mobile_number = $obj->mobile_number;
@@ -180,7 +218,6 @@ if (isset($obj->search_text)) {
     $ac_type = $obj->ac_type;
     $company_id = $obj->company_id;
 
-    // Update query
     $sql = "UPDATE purchase_party SET party_name=?, mobile_number=?, alter_number=?, email=?, company_name=?, gst_no=?, address=?, city=?, state=?, opening_balance=?, opening_date=?, ac_type=? WHERE party_id=? AND company_id=?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ssssssssssssss", $party_name, $mobile_number, $alter_number, $email, $company_name, $gst_no, $address, $city, $state, $opening_balance, $opening_date, $ac_type, $party_id, $company_id);
@@ -192,9 +229,11 @@ if (isset($obj->search_text)) {
         $output["status"] = 400;
         $output["msg"] = "Error updating record";
     }
+    $stmt->close();
+}
 
-    // Delete purchase party
-} else if (isset($obj->party_name) && isset($obj->company_id)) {
+// 3. Create new purchase party
+else if (isset($obj->party_name) && isset($obj->company_id)) {
     $compID = $obj->company_id;
     $party_name = $obj->party_name ?? null;
     $mobile_number = $obj->mobile_number ?? null;
@@ -216,12 +255,10 @@ if (isset($obj->search_text)) {
         exit();
     }
 
-    // Insert query
     $openDate = date('Y-m-d', strtotime($opening_date));
     $sql = "INSERT INTO purchase_party (company_id, party_name, mobile_number, alter_number, email, company_name, gst_no, address, city, state, opening_balance, opening_date, ac_type, delete_at) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0')";
 
-    // Updated to 13 parameters
     $stmt = $conn->prepare($sql);
     if ($stmt === false) {
         $output["status"] = 400;
@@ -230,15 +267,12 @@ if (isset($obj->search_text)) {
         exit();
     }
 
-    // Bind parameters
     $stmt->bind_param("ssssssssssdss", $compID, $party_name, $mobile_number, $alter_number, $email, $company_name, $gst_no, $address, $city, $state, $opening_balance, $openDate, $ac_type);
 
-    // Execute the statement
     if ($stmt->execute()) {
         $id = $stmt->insert_id;
-        $uniqueID = uniqueID("purchase_party", $id); // Call to uniqueID function
+        $uniqueID = uniqueID("purchase_party", $id);
 
-        // Update party_id
         $updateSql = "UPDATE purchase_party SET party_id=? WHERE id=? AND company_id=?";
         $updateStmt = $conn->prepare($updateSql);
         $updateStmt->bind_param("sis", $uniqueID, $id, $compID);
@@ -249,23 +283,25 @@ if (isset($obj->search_text)) {
             $output["data"] = array("party_id" => $uniqueID);
         } else {
             $output["status"] = 400;
-            $output["msg"] = "Error updating record: " . $updateStmt->error; // Display error
+            $output["msg"] = "Error updating record: " . $updateStmt->error;
         }
         $updateStmt->close();
     } else {
         $output["status"] = 400;
-        $output["msg"] = "Error inserting record: " . $stmt->error; // Display error
+        $output["msg"] = "Error inserting record: " . $stmt->error;
     }
 
     $stmt->close();
-} else if (isset($obj->delete_party_id) && isset($obj->company_id)) {
+}
+
+// 4. Soft delete purchase party
+else if (isset($obj->delete_party_id) && isset($obj->company_id)) {
     $party_id = $conn->real_escape_string($obj->delete_party_id);
     $company_id = $obj->company_id;
 
-    // Delete query
     $sql = "UPDATE purchase_party SET delete_at = '1' WHERE party_id = ? AND company_id=?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $party_id, $company_id); // Assuming party_id is an integer
+    $stmt->bind_param("ss", $party_id, $company_id);
 
     if ($stmt->execute()) {
         if ($stmt->affected_rows > 0) {
@@ -281,10 +317,14 @@ if (isset($obj->search_text)) {
     }
 
     $stmt->close();
-} else {
-    // Handle invalid request method
+}
+
+// Invalid request
+else {
     $output["status"] = 405;
     $output["msg"] = "Method Not Allowed";
 }
 
 echo json_encode($output, JSON_NUMERIC_CHECK);
+$conn->close();
+?>

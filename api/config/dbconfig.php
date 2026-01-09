@@ -1,7 +1,7 @@
 <?php
 $name = "localhost";
-$username = "zen_root_vignesh_traders";
-$password = "tzpKEFPkWTLpSRyk";
+$username = "root";
+$password = "";
 $database = "vignesh_traders";
 
 $conn = new mysqli($name, $username, $password, $database);
